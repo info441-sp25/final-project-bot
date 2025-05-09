@@ -24,15 +24,13 @@ As INFO students, we’re no stranger to using Discord to communicate and share 
 
 ## Data Flow:
 
-
 <img width="745" alt="Screen Shot 2025-05-09 at 1 11 56 PM" src="https://github.com/user-attachments/assets/6ca6ffb8-9a41-41cc-85cb-66a65cc7c8ed" />
-
-
-
 
 ## Architecture Diagram:
 
 <img width="1119" alt="Screen Shot 2025-05-09 at 1 12 20 PM" src="https://github.com/user-attachments/assets/c85a9f82-74c6-4566-a65e-a9252b475918" />
+
+## User Stories
 
 | Priority | User       | Description                                                                 | Technical Implementation                                                                                                                                         |
 |----------|------------|-----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
