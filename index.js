@@ -1,6 +1,6 @@
 // Import required modules
 import { Client, GatewayIntentBits } from 'discord.js';
-import { createTaskModal, processTaskModal } from './taskModal';
+import { createTaskModal, processTaskModal } from './taskModal.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

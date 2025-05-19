@@ -1,10 +1,10 @@
-const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 
 /**
  * Creates a modal for task creation
  * @returns {ModalBuilder} The configured modal
  */
-function createTaskModal() {
+export function createTaskModal() {
     // Create the modal
     const modal = new ModalBuilder()
         .setCustomId('task_modal')
@@ -44,7 +44,7 @@ function createTaskModal() {
  * @param {ModalSubmitInteraction} interaction The modal submit interaction
  * @returns {Object} The name and description (optional) of the task
  */
-function processTaskModal(interaction) {
+export function processTaskModal(interaction) {
     const taskName = interaction.fields.getTextInputValue('name');
     const description = interaction.fields.getTextInputValue('description');
 
@@ -54,7 +54,7 @@ function processTaskModal(interaction) {
     };
 }
 
-module.exports = {
-    createTaskModal,
-    processTaskModal
-};
+// module.exports = {
+//     createTaskModal,
+//     processTaskModal
+// };
