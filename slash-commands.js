@@ -1,26 +1,29 @@
-const { REST, Routes, SlashCommandBuilder } = require('discord.js');
+import  { REST, Routes } from 'discord.js';
+import dotenv from 'dotenv';
 
-const botID = "" // Your bot ID
-const serverID = "" // Your server ID
+dotenv.config();
+
+const botID = "1371957408317968637" // Your bot ID
+const serverID = "1371958765997396008"
 const botToken = process.env.DISCORD_TOKEN;
 
-const rest = new REST().setToken(botToken);
+const rest = new REST({version: '10'}).setToken(botToken);
 
-const slashRegister = async () => {
-    try {
-        const commands = [
-            new SlashCommandBuilder()
-                .setName('task')
-                .setDescription('Create a new task')
-                .toJSON(),
-        ];
-        await rest.put(
-            Routes.applicationGuildCommands(botID),
-            { body: commands },
-        );
-    } catch (err) {
-        console.error(err);
+const commands = [
+    {
+        name: 'task',
+        description: 'create a task to assign!'
     }
-}
+];
 
-slashRegister();
+(async () => {
+    try { 
+        await rest.put (
+            Routes.applicationGuildCommands(botID, serverID),
+            { body: commands }
+        )
+        console.log("commands registered")
+    } catch (err) {
+        console.log(err)
+    }
+})();
