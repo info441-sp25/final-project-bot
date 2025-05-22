@@ -2,6 +2,7 @@
 import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { createTaskModal, processTaskModal } from './taskModal.js';
 import dotenv from 'dotenv';
+import models from '../models.js'
 
 dotenv.config();
 
@@ -83,27 +84,29 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (subcommand === 'update') {
-        const taskId = interaction.options.getString('task_id');
+        // get all tasks from db
+        const tasks = await models.Task.find()
+        
+        // map through tasks to set the dropdown options 
+        const options = tasks.map(task => 
+          new StringSelectMenuOptionBuilder()
+            .setLabel(task.taskName) //users will see the task names from mongoDB
+            .setValue(task._id.toString()) // will set the value as the task id from mongoDB
+            )
 
-        // create a drop down menu for users to select new status
-        const statusSelect = new StringSelectMenuBuilder()
-          .setCustomId(`update_status:${taskId}`)
-          .setPlaceholder('Select new task status')
-          .addOptions(
-            new StringSelectMenuOptionBuilder()
-              .setLabel('In Progress')
-              .setValue('in progress'),
-            new StringSelectMenuOptionBuilder()
-              .setLabel('Complete')
-              .setValue('complete')
-          );
+        // create a drop down menu for users to select task name
+        const taskNameSelect = new StringSelectMenuBuilder()
+          .setCustomId('select_task_to_update')
+          .setPlaceholder('Select a task to update')
+          .addOptions(options)
+        
+        const taskNameRow = new ActionRowBuilder().addComponents(taskNameSelect);
 
-          const actionRow = new ActionRowBuilder().addComponents(statusSelect);
-          
-          await interaction.reply({
-            content: `Update status for task ${taskId}`,
-            components: [actionRow]
-          })
+        await interaction.reply({
+          content: 'Please select a task to update: ',
+          components: [taskNameRow],
+          ephemeral: true
+        })
       }
     }
   }
@@ -126,15 +129,44 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if(interaction.isStringSelectMenu()) {
-    const taskId = interaction.customId.split(':')[1];
-    const selectedStatus = interaction.values[0];
+    if(interaction.customId === 'select_task_to_update') {
+      const selectedTaskId = interaction.values[0];
 
-    console.log(`Task ${taskId} updated to ${selectedStatus}`);
+       // create a drop down menu for users to select new status
+       const statusSelect = new StringSelectMenuBuilder()
+       .setCustomId(`update_status:${selectedTaskId}`)
+       .setPlaceholder('Select new task status')
+       .addOptions(
+         new StringSelectMenuOptionBuilder()
+           .setLabel('In Progress')
+           .setValue('in progress'),
+         new StringSelectMenuOptionBuilder()
+           .setLabel('Complete')
+           .setValue('complete')
+       );
 
-    await updateTask(taskId, selectedStatus);
+       const statusRow = new ActionRowBuilder().addComponents(statusSelect);
+       
+       await interaction.update({
+         content: 'Now select the new status for the task:',
+         components: [statusRow],
+         ephemeral: true
+       })
+    }
 
-    await interaction.reply(`Task ${taskId} status is ${selectedStatus}`)
+    if(interaction.customId.startsWith('update_status:')) {
+      const taskId = interaction.customId.split(':')[1];
+      const selectedStatus = interaction.values[0];
 
+      console.log(`Task ${taskId} updated to ${selectedStatus}`);
+
+      await updateTask(taskId, selectedStatus);
+
+      await interaction.reply({
+        content: `Task updated! Task ID: ${taskId} New Status: ${selectedStatus}`,
+        ephemeral: true
+      })
+    }
   }
 })
 
