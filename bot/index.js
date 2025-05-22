@@ -1,5 +1,5 @@
 // Import required modules
-import { Client, GatewayIntentBits } from 'discord.js';
+import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { createTaskModal, processTaskModal } from './taskModal.js';
 import dotenv from 'dotenv';
 
@@ -8,7 +8,7 @@ dotenv.config();
 // post task data gathered from modal
 async function postTask(currUsername, taskName, taskDescription) {
   try {
-    await fetch(`http://localhost:3000/tasks`, {
+    await fetch(`http://localhost:3000/tasks/create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -21,6 +21,24 @@ async function postTask(currUsername, taskName, taskDescription) {
     })
   } catch (err) {
     console.log('error: ' + err)
+  }
+}
+
+// update task status
+async function updateTask(taskId, taskStatus) {
+  try {
+    await fetch('http://localhost:3000/tasks/update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        taskId: taskId,
+        status: taskStatus
+      })
+    })
+  } catch (err) {
+    console.log('error ' + err)
   }
 }
 
@@ -55,9 +73,38 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.isCommand()) {
     if (interaction.commandName === 'task') {
       console.log("task called")
-      // create new modal using the function from taskModal.js
-      const modal = createTaskModal();
-      await interaction.showModal(modal);
+
+      const subcommand = interaction.options.getSubcommand();
+
+      if (subcommand === 'create') {
+        // create new modal using the function from taskModal.js
+        let modal = createTaskModal();
+        await interaction.showModal(modal);
+      }
+
+      if (subcommand === 'update') {
+        const taskId = interaction.options.getString('task_id');
+
+        // create a drop down menu for users to select new status
+        const statusSelect = new StringSelectMenuBuilder()
+          .setCustomId(`update_status:${taskId}`)
+          .setPlaceholder('Select new task status')
+          .addOptions(
+            new StringSelectMenuOptionBuilder()
+              .setLabel('In Progress')
+              .setValue('in progress'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('Complete')
+              .setValue('complete')
+          );
+
+          const actionRow = new ActionRowBuilder().addComponents(statusSelect);
+          
+          await interaction.reply({
+            content: `Update status for task ${taskId}`,
+            components: [actionRow]
+          })
+      }
     }
   }
 
@@ -76,6 +123,18 @@ client.on('interactionCreate', async (interaction) => {
       // Respond to the user
       await interaction.reply(`Task "${taskName}" created successfully!`);
     }
+  }
+
+  if(interaction.isStringSelectMenu()) {
+    const taskId = interaction.customId.split(':')[1];
+    const selectedStatus = interaction.values[0];
+
+    console.log(`Task ${taskId} updated to ${selectedStatus}`);
+
+    await updateTask(taskId, selectedStatus);
+
+    await interaction.reply(`Task ${taskId} status is ${selectedStatus}`)
+
   }
 })
 

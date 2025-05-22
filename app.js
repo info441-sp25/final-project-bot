@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 
 
 // post task endpoint, not using route currently but can swap if needed
-app.post('/tasks', async (req, res) => {
+app.post('/tasks/create', async (req, res) => {
     console.log("post task endpoint called")
     const username = req.body.username
     const taskName = req.body.taskName
@@ -50,5 +50,28 @@ app.post('/tasks', async (req, res) => {
     }
 
 })
+
+// update task
+app.post('/tasks/update', async(req, res) => {
+    console.log("update task endpoint called")
+    const taskId = req.body.taskId
+    const taskStatus = req.body.status
+    try {   
+        let updatedTask = await req.models.Task.findByIdAndUpdate(
+            taskId,
+            { status: taskStatus }
+        );
+        console.log("task status updated!")
+        res.json({status: "success"})
+
+        if (!updatedTask) {
+            return res.status(404).json({status: "error", message: "Task not found"})
+        }
+
+    } catch (error) {
+        console.log(error)
+        res.json({status: "error"})
+    }
+});
 
 export default app;

@@ -12,7 +12,27 @@ const rest = new REST({version: '10'}).setToken(botToken);
 const commands = [
     {
         name: 'task',
-        description: 'create a task to assign!'
+        description: 'manage your tasks',
+        options: [
+            {
+                name: 'create',
+                description: 'create a task to assign!',
+                type: 1
+            },
+            {
+                name: 'update',
+                description: 'update the status of a task',
+                type: 1,
+                options: [
+                    {
+                        name: 'task_id',
+                        description: 'the ID of the task',
+                        type: 3,
+                        required: true
+                    }
+                ]
+            }
+        ]
     }
 ];
 
