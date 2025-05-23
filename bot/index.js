@@ -1,5 +1,5 @@
 // Import required modules
-import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { createTaskModal, processTaskModal } from './taskModal.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
@@ -41,6 +41,19 @@ async function updateTask(taskId, taskStatus) {
     })
   } catch (err) {
     console.log('error ' + err)
+  }
+}
+
+// delete task stuff blah blah blah
+async function deleteTask(taskId) {
+  try {
+    await fetch('http://localhost:3000/tasks/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId })
+    });
+  } catch (error) {
+    console.log('Error deleting task:', error);
   }
 }
 
@@ -144,6 +157,33 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: false 
         });
       }
+    
+      if (subcommand === 'delete') {
+        const tasks = await models.Task.find();
+        if (tasks.length === 0) {
+          await interaction.reply('No tasks to delete.');
+          return;
+        }
+
+        const options = tasks.map(task =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(task.taskName || 'Unnamed')
+            .setValue(task._id.toString())
+        );
+
+        const taskSelectMenu = new StringSelectMenuBuilder()
+          .setCustomId('select_task_to_delete')
+          .setPlaceholder('Select a task to delete')
+          .addOptions(options);
+
+        const selectRow = new ActionRowBuilder().addComponents(taskSelectMenu);
+
+        await interaction.reply({
+          content: 'Choose a task to delete from the dropdown below:',
+          components: [selectRow],
+          ephemeral: false
+        });
+      }
     }
   }
 
@@ -203,6 +243,40 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true
       })
     }
+
+    if (interaction.customId === 'select_task_to_delete') {
+      const selectedTaskId = interaction.values[0];
+      const selectedTask = await models.Task.findById(selectedTaskId);
+      const taskName = selectedTask?.taskName || 'Unnamed';
+      
+      //super cool delete button
+      const deleteButton = new ButtonBuilder()
+        .setCustomId(`confirm_delete:${selectedTaskId}`)
+        .setLabel(`Delete Task: ${taskName}`)
+        .setStyle(ButtonStyle.Danger);
+
+      const buttonRow = new ActionRowBuilder().addComponents(deleteButton);
+
+      await interaction.update({
+        content: `Selected: **${taskName}**\nClick the button below to delete this task.`,
+        components: [buttonRow],
+        ephemeral: false
+      });
+    }
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith('confirm_delete:')) {
+    const taskId = interaction.customId.split(':')[1];
+    const taskToDelete = await models.Task.findById(taskId);
+    const taskName = taskToDelete?.taskName || 'Unnamed';
+
+    await deleteTask(taskId);
+
+    await interaction.update({
+      content: `Task with Name: \`${taskName}\` and ID: \`${taskId}\` has been deleted.`,
+      components: [],
+      ephemeral: false
+    });
   }
 })
 

@@ -76,4 +76,18 @@ app.post('/tasks/update', async(req, res) => {
     }
 });
 
+// delete
+app.post('/tasks/delete', async (req, res) => {
+    console.log("delete endpoint called");
+    const { taskId } = req.body;
+    try {
+        await req.models.Task.findByIdAndDelete(taskId);
+        console.log("task deleted!!!!!!!");
+        return res.json({ status: "success" });
+    } catch (error) {
+        console.log("error deleting task:", error);
+        return res.json({ status: "error" });
+    }
+});
+
 export default app;

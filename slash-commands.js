@@ -28,6 +28,11 @@ const commands = [
                 name: 'all',
                 description: 'view all of the tasks (incomplete, in-progress, and complete)',
                 type: 1
+            },
+            {
+                name: 'delete',
+                description: 'delete one of your tasks',
+                type: 1 
             }
         ]
     }
