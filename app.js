@@ -59,14 +59,16 @@ app.post('/tasks/update', async(req, res) => {
     try {   
         let updatedTask = await req.models.Task.findByIdAndUpdate(
             taskId,
-            { status: taskStatus }
+            { status: taskStatus },
+            { new: true }
         );
-        console.log("task status updated!")
-        res.json({status: "success"})
 
         if (!updatedTask) {
             return res.status(404).json({status: "error", message: "Task not found"})
         }
+
+        console.log("task status updated!")
+        res.json({status: "success"})
 
     } catch (error) {
         console.log(error)

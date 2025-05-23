@@ -3,6 +3,7 @@ import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuBuilder, S
 import { createTaskModal, processTaskModal } from './taskModal.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
+import fetch from 'node-fetch';
 
 dotenv.config();
 
@@ -21,7 +22,7 @@ async function postTask(currUsername, taskName, taskDescription) {
       })
     })
   } catch (err) {
-    console.log('error: ' + err)
+    console.log('error: posting tasks ' + err)
   }
 }
 
@@ -107,6 +108,41 @@ client.on('interactionCreate', async (interaction) => {
           components: [taskNameRow],
           ephemeral: true
         })
+      }
+
+      if (subcommand === 'all') {
+        console.log("fetching all tasks")
+
+        // get all tasks from db
+        const tasks = await models.Task.find()
+    
+        if(!tasks) {
+          await interaction.reply(`No tasks yet`);
+          return
+        }
+
+        const incompleteTask = tasks.filter(t => t.status === 'incomplete');
+        const inprogressTask = tasks.filter(t => t.status === 'in progress');
+        const completedTask = tasks.filter(t => t.status == 'complete');
+        
+    
+        const formatTasks = (taskList) =>
+          taskList.map(t =>
+            `- ${t.taskName}${t.taskDescription ? ` — ${t.taskDescription}` : ''}`
+          ).join('\n');
+    
+        const replyMessage = [
+          `**All Tasks:**`,
+          `**Incomplete Tasks:**\n${formatTasks(incompleteTask) || '- none'}`,
+          `**In-Progress Tasks:**\n${formatTasks(inprogressTask) || '- none'}`,
+          `**Completed Tasks:**\n${formatTasks(completedTask) || '- none'}`,
+
+        ].join('\n\n');
+
+        await interaction.reply({ 
+          content: replyMessage, 
+          ephemeral: false 
+        });
       }
     }
   }

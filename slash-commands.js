@@ -23,6 +23,11 @@ const commands = [
                 name: 'update',
                 description: 'update the status of a task',
                 type: 1
+            },
+            {
+                name: 'all',
+                description: 'view all of the tasks (incomplete, in-progress, and complete)',
+                type: 1
             }
         ]
     }
