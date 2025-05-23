@@ -12,7 +12,9 @@
     "discord.js": "^14.19.3",
     "dotenv": "^16.5.0",
     "express": "^4.21.0",
-    "morgan": "~1.9.1"
+    "mongoose": "^8.15.0",
+    "morgan": "~1.9.1",
+    "node-fetch": "^3.3.2"
   },
   "description": "By Aadil Ali, Mackenzie Kimbrough, Megan Pham, Spencer Gardner",
   "main": "app.js",
