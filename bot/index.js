@@ -1,14 +1,15 @@
 // Import required modules
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
-import { createTaskModal, processTaskModal } from './taskModal.js';
+import { createTaskModal, processTaskModal, createUserSelect } from './taskModal.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
 import fetch from 'node-fetch';
 
+
 dotenv.config();
 
 // post task data gathered from modal
-async function postTask(currUsername, taskName, taskDescription) {
+async function postTask(currUsername, taskName, taskDescription, assignedUser, dueDate) {
   try {
     await fetch(`http://localhost:3000/tasks/create`, {
       method: 'POST',
@@ -17,8 +18,10 @@ async function postTask(currUsername, taskName, taskDescription) {
       },
       body: JSON.stringify({
         username: currUsername,
+        assignedUser: assignedUser,
         taskName: taskName,
         taskDescription: taskDescription,
+        due_date: dueDate,
       })
     })
   } catch (err) {
@@ -62,6 +65,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent]
 });
 
@@ -86,15 +90,25 @@ client.on('messageCreate', message => {
 // handle slash commands
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isCommand()) {
+
     if (interaction.commandName === 'task') {
       console.log("task called")
 
       const subcommand = interaction.options.getSubcommand();
 
       if (subcommand === 'create') {
-        // create new modal using the function from taskModal.js
-        let modal = createTaskModal();
-        await interaction.showModal(modal);
+        try {
+          
+          let userRow = createUserSelect()
+          await interaction.reply({
+            content: 'Please select a user to assign this task to: ',
+            components: [userRow],
+            ephemeral: true
+          })
+        } catch (err) {
+          console.log("error: " + err)
+        }
+
       }
 
       if (subcommand === 'update') {
@@ -187,20 +201,30 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
+  if (interaction.isUserSelectMenu() && interaction.customId == 'user_select') {
+        // create new modal using the function from taskModal.js
+        console.log(interaction.values)
+        const member = interaction.guild.members.cache.get(interaction.values[0]);
+        const username = member ? member.user.username : 'Unknown User';
+        console.log(username)
+        let modal = createTaskModal(username);
+        await interaction.showModal(modal);
+  }
+
   if (interaction.isModalSubmit()) {
     console.log("modal submitted")
     if (interaction.customId === 'task_modal') {
       console.log("processing modal info")
-      const { taskName, description } = processTaskModal(interaction);
+      const { taskName, description, assignedUser, dueDate } = processTaskModal(interaction);
 
       // lightweight for now, we can add userID if needed
       const currUsername = interaction.user.username;
 
       // post task data to the server
-      await postTask(currUsername, taskName, description);
+      await postTask(currUsername, taskName, description, assignedUser, dueDate);
 
       // Respond to the user
-      await interaction.reply(`Task "${taskName}" created successfully!`);
+      await interaction.reply(`Task "${taskName}" created successfully! Assigned to @${assignedUser} and due on ${dueDate}`);
     }
   }
 
@@ -210,7 +234,7 @@ client.on('interactionCreate', async (interaction) => {
 
        // create a drop down menu for users to select new status
        const statusSelect = new StringSelectMenuBuilder()
-       .setCustomId(`update_status:${selectedTaskId}`)
+       .setCustomId(`update_status: ${selectedTaskId}`)
        .setPlaceholder('Select new task status')
        .addOptions(
          new StringSelectMenuOptionBuilder()

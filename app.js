@@ -32,13 +32,18 @@ app.post('/tasks/create', async (req, res) => {
     const username = req.body.username
     const taskName = req.body.taskName
     const taskDescription = req.body.taskDescription
+    const assignedUser = req.body.assignedUser
+    const dueDate = req.body.due_date
     try {
+        console.log("on api post attempt" + dueDate)
         let newTask = new req.models.Task({
             username: username,
+            assignedUser: assignedUser,
             taskName: taskName,
             taskDescription: taskDescription,
             status: "incomplete",
-            created_date: Date()
+            due_date: new Date(dueDate),
+            created_date: new Date()
         })
         console.log("saving")
         await newTask.save()

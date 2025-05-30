@@ -14,9 +14,11 @@ console.log('Connected to MongoDB')
 
 const taskSchema = new mongoose.Schema({
     username: String,
+    assignedUser: String,
     taskName: String,
     taskDescription: String,
     status: String,
+    due_date: Date,
     created_date: Date
 })
 
