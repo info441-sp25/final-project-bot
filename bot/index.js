@@ -264,17 +264,31 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if(interaction.customId.startsWith('update_status:')) {
-      const taskId = interaction.customId.split(':')[1];
+      const rawId = interaction.customId.split(':')[1];
+      const taskId = rawId.trim();
       const selectedStatus = interaction.values[0];
 
-      console.log(`Task ${taskId} updated to ${selectedStatus}`);
-
-      await updateTask(taskId, selectedStatus);
-
-      await interaction.reply({
-        content: `Task updated! Task ID: ${taskId} New Status: ${selectedStatus}`,
-        ephemeral: true
-      })
+      try {
+        await updateTask(taskId, selectedStatus);
+        const updatedTask = await models.Task.findById(taskId);
+        if (!updatedTask) {
+          await interaction.reply({
+            content: 'Task not found or invalid ID.',
+            ephemeral: true
+          });
+          return;
+        }
+        const taskName = updatedTask.taskName || 'Unnamed';
+        await interaction.reply({
+          content: `Task updated! Task Name: **${taskName}** — New Status: **${selectedStatus}**`,
+          ephemeral: false
+        });
+      } catch (error) {
+        console.log('Error updating task:', error);
+        await interaction.reply({
+          content: 'Error updating task.'
+        });
+      }
     }
 
     if (interaction.customId === 'select_task_to_delete') {
