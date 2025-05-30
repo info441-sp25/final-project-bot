@@ -19,7 +19,9 @@ const taskSchema = new mongoose.Schema({
     taskDescription: String,
     status: String,
     due_date: Date,
-    created_date: Date
+    created_date: Date,
+    reminderFrequency: String,
+    reminderTime: String
 })
 
 console.log("creating task model")

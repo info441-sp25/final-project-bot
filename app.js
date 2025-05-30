@@ -95,4 +95,22 @@ app.post('/tasks/delete', async (req, res) => {
     }
 });
 
+app.post('/tasks/remind', async (req, res) => {
+    const { taskId, frequency, reminderTime } = req.body;
+    try {
+        const updatedTask = await req.models.Task.findByIdAndUpdate(
+            taskId,
+            { reminderFrequency: frequency, reminderTime: reminderTime },
+            { new: true }
+        );
+        if (!updatedTask) {
+            return res.status(404).json({ status: 'error', message: 'Task not found' });
+        }
+        return res.json({ status: 'success', updatedTask });
+    } catch (error) {
+        console.log('Error setting reminder frequency:', error);
+        return res.json({ status: 'error' });
+    }
+});
+
 export default app;

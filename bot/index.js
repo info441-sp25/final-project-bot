@@ -1,10 +1,11 @@
 // Import required modules
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { createTaskModal, processTaskModal, createUserSelect } from './taskModal.js';
 import { createUpdateTaskDropdown, createStatusSelectMenu } from './taskUpdateMenu.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
 import fetch from 'node-fetch';
+import cron from 'node-cron';
 
 
 dotenv.config();
@@ -187,6 +188,35 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: false
         });
       }
+
+      // reminder stuff
+      if (subcommand === 'remind') {
+
+        const tasks = await models.Task.find();
+        if (!tasks.length) {
+          await interaction.reply('No tasks found to set a reminder for.');
+          return;
+        }
+
+        const options = tasks.map(task =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(task.taskName || 'Unnamed')
+            .setValue(task._id.toString())
+        );
+
+        const taskSelectMenu = new StringSelectMenuBuilder()
+          .setCustomId('select_task_for_reminder')
+          .setPlaceholder('Select a task to set a reminder for')
+          .addOptions(options);
+
+        const taskRow = new ActionRowBuilder().addComponents(taskSelectMenu);
+
+        await interaction.reply({
+          content: 'Pick the task you want to set a reminder for:',
+          components: [taskRow],
+          ephemeral: true
+        });
+      }
     }
   }
 
@@ -266,6 +296,61 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: false
       });
     }
+
+    if (interaction.customId === 'select_task_for_reminder') {
+      const selectedTaskId = interaction.values[0];
+      const selectedTask = await models.Task.findById(selectedTaskId);
+      if (!selectedTask) {
+        await interaction.update({ content: 'Task not found.', components: [] });
+        return;
+      }
+
+      // discord js cool things string building
+      const freqOptions = [
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Once a day')
+          .setValue('daily'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Twice a day')
+          .setValue('twice-daily'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Once a week')
+          .setValue('weekly')
+      ];
+
+      const freqMenu = new StringSelectMenuBuilder()
+        .setCustomId(`select_frequency:${selectedTaskId}`)
+        .setPlaceholder('How often do you want to be reminded?')
+        .addOptions(freqOptions);
+
+      const freqRow = new ActionRowBuilder().addComponents(freqMenu);
+
+      await interaction.update({
+        content: `Selected: **${selectedTask.taskName}**.\nNow choose a reminder frequency:`,
+        components: [freqRow],
+        ephemeral: true
+      });
+    }
+
+    if (interaction.customId.startsWith('select_frequency:')) {
+      const taskId = interaction.customId.split(':')[1];
+      const frequency = interaction.values[0];
+
+      const timeModal = new ModalBuilder()
+        .setCustomId(`time_modal:${taskId}:${frequency}`)
+        .setTitle('Set Reminder Time');
+
+      const timeInput = new TextInputBuilder()
+        .setCustomId('reminder_time')
+        .setLabel('Enter reminder time (24-hr format, Military Time, (HH:mm))')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g. 12:00 or 18:30');
+
+      const modalRow = new ActionRowBuilder().addComponents(timeInput);
+      timeModal.addComponents(modalRow);
+
+      await interaction.showModal(timeModal);
+    }
   }
 
   if (interaction.isButton() && interaction.customId.startsWith('confirm_delete:')) {
@@ -281,7 +366,61 @@ client.on('interactionCreate', async (interaction) => {
       ephemeral: false
     });
   }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('time_modal:')) {
+    const [, taskId, frequency] = interaction.customId.split(':');
+    const reminderTime = interaction.fields.getTextInputValue('reminder_time') || '';
+
+    try {
+      await fetch('http://localhost:3000/tasks/remind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, frequency, reminderTime })
+      });
+
+      const updatedTask = await models.Task.findById(taskId);
+      const taskName = updatedTask?.taskName || 'Unnamed';
+
+      await interaction.reply({
+        content: `Reminder set for **${taskName}** at **${reminderTime}** with frequency **${frequency}**.`,
+        ephemeral: false
+      });
+    } catch (err) {
+      console.log('Error setting reminder:', err);
+      await interaction.reply({
+        content: 'Failed to set reminder time.',
+        ephemeral: true
+      });
+    }
+  }
 })
 
+// this is a cron which run scheduled script that runs automaticallt at a specific time blah blah blah
+// https://www.npmjs.com/package/node-cron
+cron.schedule('* * * * *', async () => {
+  try {
+    const reminderTasks = await models.Task.find({
+      reminderFrequency: { $in: ['daily', 'twice-daily', 'weekly'] },
+      reminderTime: { $exists: true, $ne: '' }
+    });
+    // time conversion
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5);
+
+    for (const task of reminderTasks) {
+      if (task.reminderTime === currentTime) {
+
+        const channel = await client.channels.fetch('1371958765997396011');
+        if (channel) {
+          channel.send(
+            `⏰ Reminder: Task "${task.taskName}" is still **${task.status}** for **${task.assignedUser}**.`
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.log('Error sending scheduled reminders:', error);
+  }
+});
 // Log in to Discord using token from .env
 client.login(process.env.DISCORD_TOKEN);
