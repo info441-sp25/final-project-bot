@@ -323,13 +323,10 @@ client.on('interactionCreate', async (interaction) => {
       const freqOptions = [
         new StringSelectMenuOptionBuilder()
           .setLabel('Once a day')
-          .setValue('daily'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Twice a day')
-          .setValue('twice-daily'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Once a week')
-          .setValue('weekly')
+          .setValue('daily')
+        // can add more here for future work but needs more a lot more logic to implement
+        // array of times
+        // probably a new field for weekly date
       ];
 
       const freqMenu = new StringSelectMenuBuilder()
@@ -356,7 +353,7 @@ client.on('interactionCreate', async (interaction) => {
 
       const timeInput = new TextInputBuilder()
         .setCustomId('reminder_time')
-        .setLabel('Enter reminder time (24-hr format, Military Time, (HH:mm))')
+        .setLabel('Enter reminder time (24-hr format)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('e.g. 12:00 or 18:30');
 
@@ -396,7 +393,7 @@ client.on('interactionCreate', async (interaction) => {
       const taskName = updatedTask?.taskName || 'Unnamed';
 
       await interaction.reply({
-        content: `Reminder set for **${taskName}** at **${reminderTime}** with frequency **${frequency}**.`,
+        content: `Reminder set for **${taskName}** at **${reminderTime}** with frequency: **${frequency}**.`,
         ephemeral: false
       });
     } catch (err) {
@@ -424,10 +421,11 @@ cron.schedule('* * * * *', async () => {
     for (const task of reminderTasks) {
       if (task.reminderTime === currentTime) {
 
-        const channel = await client.channels.fetch('1371958765997396011');
+        const channel = await client.channels.fetch('1371958765997396011');        
         if (channel) {
+          const formattedDueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US') : 'No due date set';
           channel.send(
-            `⏰ Reminder: Task "${task.taskName}" is still **${task.status}** for **${task.assignedUser}**.`
+            `⏰ Reminder: Task **${task.taskName}** is still **${task.status}** for **${task.assignedUser}**\nand is due on: **${formattedDueDate}**.`
           );
         }
       }
