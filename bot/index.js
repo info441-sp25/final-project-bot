@@ -2,6 +2,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { createTaskModal, processTaskModal, createUserSelect } from './taskModal.js';
 import { createUpdateTaskDropdown, createStatusSelectMenu } from './taskUpdateMenu.js';
+import { buildEditTaskModal } from './editTaskModal.js';
+import { buildRemindModal } from './reminderModal.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
 import fetch from 'node-fetch';
@@ -121,42 +123,8 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply('Task not found.');
       return;
     }
-
-    const editModal = new ModalBuilder()
-      .setCustomId(`edit_task_modal:${taskId}`)
-      .setTitle('Edit Task Fields');
-
-    const nameInput = new TextInputBuilder()
-      .setCustomId('taskName')
-      .setLabel('New Name')
-      .setStyle(TextInputStyle.Short)
-      .setValue(taskToEdit.taskName || '');
-
-    const descInput = new TextInputBuilder()
-      .setCustomId('description')
-      .setLabel('New Description')
-      .setStyle(TextInputStyle.Paragraph)
-      .setValue(taskToEdit.taskDescription || '');
-
-    const dueDateInput = new TextInputBuilder()
-      .setCustomId('due_date')
-      .setLabel('New Due Date (YYYY-MM-DD)')
-      .setStyle(TextInputStyle.Short)
-      .setValue(taskToEdit.due_date ? taskToEdit.due_date.toISOString().split('T')[0] : '');
-
-    const assignedUserInput = new TextInputBuilder()
-      .setCustomId('assignedUser')
-      .setLabel('New Assigned User')
-      .setStyle(TextInputStyle.Short)
-      .setValue(taskToEdit.assignedUser || '');
-
-    editModal.addComponents(
-      new ActionRowBuilder().addComponents(nameInput),
-      new ActionRowBuilder().addComponents(descInput),
-      new ActionRowBuilder().addComponents(dueDateInput),
-      new ActionRowBuilder().addComponents(assignedUserInput)
-    );
-
+    // refactor here
+    const editModal = buildEditTaskModal(taskId, taskToEdit);
     await interaction.showModal(editModal);
   }
 
@@ -443,20 +411,8 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.customId.startsWith('select_frequency:')) {
       const taskId = interaction.customId.split(':')[1];
       const frequency = interaction.values[0];
-
-      const timeModal = new ModalBuilder()
-        .setCustomId(`time_modal:${taskId}:${frequency}`)
-        .setTitle('Set Reminder Time');
-
-      const timeInput = new TextInputBuilder()
-        .setCustomId('reminder_time')
-        .setLabel('Enter reminder time (24-hr format)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 12:00 or 18:30');
-
-      const modalRow = new ActionRowBuilder().addComponents(timeInput);
-      timeModal.addComponents(modalRow);
-
+      // refactor here 
+      const timeModal = buildRemindModal(taskId, frequency);
       await interaction.showModal(timeModal);
     }
   }
