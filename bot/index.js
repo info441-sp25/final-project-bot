@@ -177,7 +177,7 @@ client.on('interactionCreate', async (interaction) => {
 
       if (data.status === 'success') {
         await interaction.reply(
-          `**Task edited successfully!**\nHere are the new task details:\n**Name:** ${taskName}\n**Description:** ${description}\n**Due Date:** ${due_date}\n**Assigned User:** ${assignedUser}`
+          `**Task edited successfully!** Here are the new task details:\n**Name:** ${taskName}\n**Description:** ${description}\n**Due Date:** ${due_date}\n**Assigned User:** ${assignedUser}`
         );
       } else {
         await interaction.reply('Error editing task.');
@@ -469,7 +469,7 @@ client.on('interactionCreate', async (interaction) => {
     await deleteTask(taskId);
 
     await interaction.update({
-      content: `Task with Name: \`${taskName}\` and ID: \`${taskId}\` has been deleted.`,
+      content: `Task with Name: **${taskName}** and ID: **${taskId}** has been deleted.`,
       components: [],
       ephemeral: false
     });
@@ -490,7 +490,8 @@ client.on('interactionCreate', async (interaction) => {
       const taskName = updatedTask?.taskName || 'Unnamed';
 
       await interaction.reply({
-        content: `Reminder set for **${taskName}** at **${reminderTime}** with frequency: **${frequency}**.`,
+        content: `Reminder set for task: **${taskName}** for the time: **${reminderTime}**`,
+        //  with frequency: **${frequency}**. (this is if we want to implement frequenct)
         ephemeral: false
       });
     } catch (err) {
@@ -508,7 +509,7 @@ client.on('interactionCreate', async (interaction) => {
 cron.schedule('* * * * *', async () => {
   try {
     const reminderTasks = await models.Task.find({
-      reminderFrequency: { $in: ['daily', 'twice-daily', 'weekly'] },
+      reminderFrequency: { $in: ['daily'] },
       reminderTime: { $exists: true, $ne: '' }
     });
     // time conversion
@@ -522,7 +523,7 @@ cron.schedule('* * * * *', async () => {
         if (channel) {
           const formattedDueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US') : 'No due date set';
           channel.send(
-            `⏰ Reminder: Task **${task.taskName}** is still **${task.status}** for **${task.assignedUser}**\nand is due on: **${formattedDueDate}**.`
+            `⏰ Reminder: Task: **${task.taskName}** is still **${task.status}** for **${task.assignedUser}**\nand is due on: **${formattedDueDate}**.`
           );
         }
       }
