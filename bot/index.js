@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import models from '../models.js'
 import fetch from 'node-fetch';
 import cron from 'node-cron';
+import { buildDeleteTaskMenu, buildConfirmDeleteButton } from './deleteTaskUI.js';
 
 
 dotenv.config();
@@ -234,19 +235,8 @@ client.on('interactionCreate', async (interaction) => {
           return;
         }
 
-        const options = tasks.map(task =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(task.taskName || 'Unnamed')
-            .setValue(task._id.toString())
-        );
-
-        const taskSelectMenu = new StringSelectMenuBuilder()
-          .setCustomId('select_task_to_delete')
-          .setPlaceholder('Select a task to delete')
-          .addOptions(options);
-
-        const selectRow = new ActionRowBuilder().addComponents(taskSelectMenu);
-
+        // refactor delete
+        const selectRow = buildDeleteTaskMenu(tasks);
         await interaction.reply({
           content: 'Choose a task to delete from the dropdown below:',
           components: [selectRow],
@@ -360,14 +350,9 @@ client.on('interactionCreate', async (interaction) => {
       const selectedTaskId = interaction.values[0];
       const selectedTask = await models.Task.findById(selectedTaskId);
       const taskName = selectedTask?.taskName || 'Unnamed';
-      
-      //super cool delete button
-      const deleteButton = new ButtonBuilder()
-        .setCustomId(`confirm_delete:${selectedTaskId}`)
-        .setLabel(`Delete Task: ${taskName}`)
-        .setStyle(ButtonStyle.Danger);
 
-      const buttonRow = new ActionRowBuilder().addComponents(deleteButton);
+      // refactor delete buttons
+      const buttonRow = buildConfirmDeleteButton(selectedTaskId, taskName);
 
       await interaction.update({
         content: `Selected: **${taskName}**\nClick the button below to delete this task.`,
