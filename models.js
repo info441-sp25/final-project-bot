@@ -14,10 +14,14 @@ console.log('Connected to MongoDB')
 
 const taskSchema = new mongoose.Schema({
     username: String,
+    assignedUser: String,
     taskName: String,
     taskDescription: String,
     status: String,
-    created_date: Date
+    due_date: Date,
+    created_date: Date,
+    reminderFrequency: String,
+    reminderTime: String
 })
 
 console.log("creating task model")

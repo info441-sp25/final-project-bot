@@ -32,13 +32,18 @@ app.post('/tasks/create', async (req, res) => {
     const username = req.body.username
     const taskName = req.body.taskName
     const taskDescription = req.body.taskDescription
+    const assignedUser = req.body.assignedUser
+    const dueDate = req.body.due_date
     try {
+        console.log("on api post attempt" + dueDate)
         let newTask = new req.models.Task({
             username: username,
+            assignedUser: assignedUser,
             taskName: taskName,
             taskDescription: taskDescription,
             status: "incomplete",
-            created_date: Date()
+            due_date: new Date(dueDate),
+            created_date: new Date()
         })
         console.log("saving")
         await newTask.save()
@@ -88,6 +93,47 @@ app.post('/tasks/delete', async (req, res) => {
         console.log("error deleting task:", error);
         return res.json({ status: "error" });
     }
+});
+
+app.post('/tasks/remind', async (req, res) => {
+    const { taskId, frequency, reminderTime } = req.body;
+    try {
+        const updatedTask = await req.models.Task.findByIdAndUpdate(
+            taskId,
+            { reminderFrequency: frequency, reminderTime: reminderTime },
+            { new: true }
+        );
+        if (!updatedTask) {
+            return res.status(404).json({ status: 'error', message: 'Task not found' });
+        }
+        return res.json({ status: 'success', updatedTask });
+    } catch (error) {
+        console.log('Error setting reminder frequency:', error);
+        return res.json({ status: 'error' });
+    }
+});
+
+app.post('/tasks/edit', async (req, res) => {
+  const { taskId, taskName, description, due_date, assignedUser } = req.body;
+  try {
+    const updatedTask = await req.models.Task.findByIdAndUpdate(
+      taskId,
+      { 
+        taskName, 
+        taskDescription: description,
+        due_date,
+        assignedUser
+      },
+      { new: true }
+    );
+    if (!updatedTask) {
+      return res.status(404).json({ status: 'error', message: 'Task not found' });
+    }
+    res.json({ status: 'success', updatedTask });
+  } catch (error) {
+    console.log('Error editing task:', error);
+    res.json({ status: 'error' });
+  }
 });
 
 export default app;

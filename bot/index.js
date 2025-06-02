@@ -1,14 +1,17 @@
 // Import required modules
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
-import { createTaskModal, processTaskModal } from './taskModal.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { createTaskModal, processTaskModal, createUserSelect } from './taskModal.js';
+import { createUpdateTaskDropdown, createStatusSelectMenu } from './taskUpdateMenu.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
 import fetch from 'node-fetch';
+import cron from 'node-cron';
+
 
 dotenv.config();
 
 // post task data gathered from modal
-async function postTask(currUsername, taskName, taskDescription) {
+async function postTask(currUsername, taskName, taskDescription, assignedUser, dueDate) {
   try {
     await fetch(`http://localhost:3000/tasks/create`, {
       method: 'POST',
@@ -17,8 +20,10 @@ async function postTask(currUsername, taskName, taskDescription) {
       },
       body: JSON.stringify({
         username: currUsername,
+        assignedUser: assignedUser,
         taskName: taskName,
         taskDescription: taskDescription,
+        due_date: dueDate,
       })
     })
   } catch (err) {
@@ -39,8 +44,8 @@ async function updateTask(taskId, taskStatus) {
         status: taskStatus
       })
     })
-  } catch (err) {
-    console.log('error ' + err)
+  } catch (error) {
+    console.log('Error updating task: ' + error)
   }
 }
 
@@ -62,6 +67,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent]
 });
 
@@ -85,42 +91,137 @@ client.on('messageCreate', message => {
 
 // handle slash commands
 client.on('interactionCreate', async (interaction) => {
+  if (interaction.isCommand() && interaction.commandName === 'task') {
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === 'edit') {
+      const tasks = await models.Task.find(); 
+      if (!tasks.length) {
+        await interaction.reply('No tasks found.');
+        return;
+      }
+      const options = tasks.map(task =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(task.taskName || 'Unnamed')
+          .setValue(task._id.toString())
+      );
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('select_task_to_edit')
+        .setPlaceholder('Select a task to edit')
+        .addOptions(options);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      await interaction.reply({ components: [row] });
+    }
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'select_task_to_edit') {
+    const taskId = interaction.values[0];
+    const taskToEdit = await models.Task.findById(taskId);
+    if (!taskToEdit) {
+      await interaction.reply('Task not found.');
+      return;
+    }
+
+    const editModal = new ModalBuilder()
+      .setCustomId(`edit_task_modal:${taskId}`)
+      .setTitle('Edit Task Fields');
+
+    const nameInput = new TextInputBuilder()
+      .setCustomId('taskName')
+      .setLabel('New Name')
+      .setStyle(TextInputStyle.Short)
+      .setValue(taskToEdit.taskName || '');
+
+    const descInput = new TextInputBuilder()
+      .setCustomId('description')
+      .setLabel('New Description')
+      .setStyle(TextInputStyle.Paragraph)
+      .setValue(taskToEdit.taskDescription || '');
+
+    const dueDateInput = new TextInputBuilder()
+      .setCustomId('due_date')
+      .setLabel('New Due Date (YYYY-MM-DD)')
+      .setStyle(TextInputStyle.Short)
+      .setValue(taskToEdit.due_date ? taskToEdit.due_date.toISOString().split('T')[0] : '');
+
+    const assignedUserInput = new TextInputBuilder()
+      .setCustomId('assignedUser')
+      .setLabel('New Assigned User')
+      .setStyle(TextInputStyle.Short)
+      .setValue(taskToEdit.assignedUser || '');
+
+    editModal.addComponents(
+      new ActionRowBuilder().addComponents(nameInput),
+      new ActionRowBuilder().addComponents(descInput),
+      new ActionRowBuilder().addComponents(dueDateInput),
+      new ActionRowBuilder().addComponents(assignedUserInput)
+    );
+
+    await interaction.showModal(editModal);
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('edit_task_modal:')) {
+    const taskId = interaction.customId.split(':')[1];
+    const taskName = interaction.fields.getTextInputValue('taskName');
+    const description = interaction.fields.getTextInputValue('description');
+    const due_date = interaction.fields.getTextInputValue('due_date');
+    const assignedUser = interaction.fields.getTextInputValue('assignedUser');
+
+    try {
+      const response = await fetch('http://localhost:3000/tasks/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, taskName, description, due_date, assignedUser })
+      });
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        await interaction.reply(
+          `**Task edited successfully!** Here are the new task details:\n**Name:** ${taskName}\n**Description:** ${description}\n**Due Date:** ${due_date}\n**Assigned User:** ${assignedUser}`
+        );
+      } else {
+        await interaction.reply('Error editing task.');
+      }
+    } catch (err) {
+      console.log('Error editing task:', err);
+      await interaction.reply('Failed to edit task.');
+    }
+  }
+
   if (interaction.isCommand()) {
+
     if (interaction.commandName === 'task') {
       console.log("task called")
 
       const subcommand = interaction.options.getSubcommand();
 
       if (subcommand === 'create') {
-        // create new modal using the function from taskModal.js
-        let modal = createTaskModal();
-        await interaction.showModal(modal);
+        try {
+          
+          let userRow = createUserSelect()
+          await interaction.reply({
+            content: 'Please select a user to assign this task to: ',
+            components: [userRow],
+            ephemeral: true
+          })
+        } catch (err) {
+          console.log("error: " + err)
+        }
+
       }
 
       if (subcommand === 'update') {
-        // get all tasks from db
-        const tasks = await models.Task.find()
-        
-        // map through tasks to set the dropdown options 
-        const options = tasks.map(task => 
-          new StringSelectMenuOptionBuilder()
-            .setLabel(task.taskName) //users will see the task names from mongoDB
-            .setValue(task._id.toString()) // will set the value as the task id from mongoDB
-            )
+        try {
+          const taskNameRow = await createUpdateTaskDropdown()
 
-        // create a drop down menu for users to select task name
-        const taskNameSelect = new StringSelectMenuBuilder()
-          .setCustomId('select_task_to_update')
-          .setPlaceholder('Select a task to update')
-          .addOptions(options)
-        
-        const taskNameRow = new ActionRowBuilder().addComponents(taskNameSelect);
-
-        await interaction.reply({
-          content: 'Please select a task to update: ',
-          components: [taskNameRow],
-          ephemeral: true
-        })
+          await interaction.reply({
+            content: 'Please select a task to update: ',
+            components: [taskNameRow],
+            ephemeral: true
+          })
+        } catch(error) {
+          console.log("error: ", error)
+        }
       }
 
       if (subcommand === 'all') {
@@ -184,64 +285,107 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: false
         });
       }
+
+      // reminder stuff
+      if (subcommand === 'remind') {
+
+        const tasks = await models.Task.find();
+        if (!tasks.length) {
+          await interaction.reply('No tasks found to set a reminder for.');
+          return;
+        }
+
+        const options = tasks.map(task =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(task.taskName || 'Unnamed')
+            .setValue(task._id.toString())
+        );
+
+        const taskSelectMenu = new StringSelectMenuBuilder()
+          .setCustomId('select_task_for_reminder')
+          .setPlaceholder('Select a task to set a reminder for')
+          .addOptions(options);
+
+        const taskRow = new ActionRowBuilder().addComponents(taskSelectMenu);
+
+        await interaction.reply({
+          content: 'Pick the task you want to set a reminder for:',
+          components: [taskRow],
+          ephemeral: true
+        });
+      }
     }
+  }
+
+  if (interaction.isUserSelectMenu() && interaction.customId == 'user_select') {
+        // create new modal using the function from taskModal.js
+        console.log(interaction.values)
+        const member = interaction.guild.members.cache.get(interaction.values[0]);
+        const username = member ? member.user.username : 'Unknown User';
+        console.log(username)
+        let modal = createTaskModal(username);
+        await interaction.showModal(modal);
   }
 
   if (interaction.isModalSubmit()) {
     console.log("modal submitted")
     if (interaction.customId === 'task_modal') {
       console.log("processing modal info")
-      const { taskName, description } = processTaskModal(interaction);
+      const { taskName, description, assignedUser, dueDate } = processTaskModal(interaction);
 
       // lightweight for now, we can add userID if needed
       const currUsername = interaction.user.username;
 
       // post task data to the server
-      await postTask(currUsername, taskName, description);
+      await postTask(currUsername, taskName, description, assignedUser, dueDate);
 
       // Respond to the user
-      await interaction.reply(`Task "${taskName}" created successfully!`);
+      await interaction.reply(`Task "${taskName}" created successfully! Assigned to @${assignedUser} and due on ${dueDate}`);
     }
   }
 
   if(interaction.isStringSelectMenu()) {
     if(interaction.customId === 'select_task_to_update') {
-      const selectedTaskId = interaction.values[0];
-
-       // create a drop down menu for users to select new status
-       const statusSelect = new StringSelectMenuBuilder()
-       .setCustomId(`update_status:${selectedTaskId}`)
-       .setPlaceholder('Select new task status')
-       .addOptions(
-         new StringSelectMenuOptionBuilder()
-           .setLabel('In Progress')
-           .setValue('in progress'),
-         new StringSelectMenuOptionBuilder()
-           .setLabel('Complete')
-           .setValue('complete')
-       );
-
-       const statusRow = new ActionRowBuilder().addComponents(statusSelect);
-       
-       await interaction.update({
-         content: 'Now select the new status for the task:',
-         components: [statusRow],
-         ephemeral: true
-       })
+      try{
+        const selectedTaskId = interaction.values[0];
+        const statusRow = createStatusSelectMenu(selectedTaskId);
+        
+        await interaction.update({
+          content: 'Now select the new status for the task:',
+          components: [statusRow],
+          ephemeral: true
+        })
+      } catch(error) {
+        console.log("error: " + error)
+      }
     }
 
     if(interaction.customId.startsWith('update_status:')) {
-      const taskId = interaction.customId.split(':')[1];
+      const rawId = interaction.customId.split(':')[1];
+      const taskId = rawId.trim();
       const selectedStatus = interaction.values[0];
 
-      console.log(`Task ${taskId} updated to ${selectedStatus}`);
-
-      await updateTask(taskId, selectedStatus);
-
-      await interaction.reply({
-        content: `Task updated! Task ID: ${taskId} New Status: ${selectedStatus}`,
-        ephemeral: true
-      })
+      try {
+        await updateTask(taskId, selectedStatus);
+        const updatedTask = await models.Task.findById(taskId);
+        if (!updatedTask) {
+          await interaction.reply({
+            content: 'Task not found or invalid ID.',
+            ephemeral: true
+          });
+          return;
+        }
+        const taskName = updatedTask.taskName || 'Unnamed';
+        await interaction.reply({
+          content: `Task updated! Task Name: **${taskName}** — New Status: **${selectedStatus}**`,
+          ephemeral: false
+        });
+      } catch (error) {
+        console.log('Error updating task:', error);
+        await interaction.reply({
+          content: 'Error updating task.'
+        });
+      }
     }
 
     if (interaction.customId === 'select_task_to_delete') {
@@ -263,6 +407,58 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: false
       });
     }
+
+    if (interaction.customId === 'select_task_for_reminder') {
+      const selectedTaskId = interaction.values[0];
+      const selectedTask = await models.Task.findById(selectedTaskId);
+      if (!selectedTask) {
+        await interaction.update({ content: 'Task not found.', components: [] });
+        return;
+      }
+
+      // discord js cool things string building
+      const freqOptions = [
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Once a day')
+          .setValue('daily')
+        // can add more here for future work but needs more a lot more logic to implement
+        // array of times
+        // probably a new field for weekly date
+      ];
+
+      const freqMenu = new StringSelectMenuBuilder()
+        .setCustomId(`select_frequency:${selectedTaskId}`)
+        .setPlaceholder('How often do you want to be reminded?')
+        .addOptions(freqOptions);
+
+      const freqRow = new ActionRowBuilder().addComponents(freqMenu);
+
+      await interaction.update({
+        content: `Selected: **${selectedTask.taskName}**.\nNow choose a reminder frequency:`,
+        components: [freqRow],
+        ephemeral: true
+      });
+    }
+
+    if (interaction.customId.startsWith('select_frequency:')) {
+      const taskId = interaction.customId.split(':')[1];
+      const frequency = interaction.values[0];
+
+      const timeModal = new ModalBuilder()
+        .setCustomId(`time_modal:${taskId}:${frequency}`)
+        .setTitle('Set Reminder Time');
+
+      const timeInput = new TextInputBuilder()
+        .setCustomId('reminder_time')
+        .setLabel('Enter reminder time (24-hr format)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g. 12:00 or 18:30');
+
+      const modalRow = new ActionRowBuilder().addComponents(timeInput);
+      timeModal.addComponents(modalRow);
+
+      await interaction.showModal(timeModal);
+    }
   }
 
   if (interaction.isButton() && interaction.customId.startsWith('confirm_delete:')) {
@@ -273,12 +469,68 @@ client.on('interactionCreate', async (interaction) => {
     await deleteTask(taskId);
 
     await interaction.update({
-      content: `Task with Name: \`${taskName}\` and ID: \`${taskId}\` has been deleted.`,
+      content: `Task with Name: **${taskName}** and ID: **${taskId}** has been deleted.`,
       components: [],
       ephemeral: false
     });
   }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('time_modal:')) {
+    const [, taskId, frequency] = interaction.customId.split(':');
+    const reminderTime = interaction.fields.getTextInputValue('reminder_time') || '';
+
+    try {
+      await fetch('http://localhost:3000/tasks/remind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, frequency, reminderTime })
+      });
+
+      const updatedTask = await models.Task.findById(taskId);
+      const taskName = updatedTask?.taskName || 'Unnamed';
+
+      await interaction.reply({
+        content: `Reminder set for task: **${taskName}** for the time: **${reminderTime}**`,
+        //  with frequency: **${frequency}**. (this is if we want to implement frequenct)
+        ephemeral: false
+      });
+    } catch (err) {
+      console.log('Error setting reminder:', err);
+      await interaction.reply({
+        content: 'Failed to set reminder time.',
+        ephemeral: true
+      });
+    }
+  }
 })
 
+// this is a cron which run scheduled script that runs automaticallt at a specific time blah blah blah
+// https://www.npmjs.com/package/node-cron
+cron.schedule('* * * * *', async () => {
+  try {
+    const reminderTasks = await models.Task.find({
+      reminderFrequency: { $in: ['daily'] },
+      reminderTime: { $exists: true, $ne: '' }
+    });
+    // time conversion
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5);
+
+    for (const task of reminderTasks) {
+      if (task.reminderTime === currentTime) {
+
+        const channel = await client.channels.fetch('1371958765997396011');        
+        if (channel) {
+          const formattedDueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US') : 'No due date set';
+          channel.send(
+            `⏰ Reminder: Task: **${task.taskName}** is still **${task.status}** for **${task.assignedUser}**\nand is due on: **${formattedDueDate}**.`
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.log('Error sending scheduled reminders:', error);
+  }
+});
 // Log in to Discord using token from .env
 client.login(process.env.DISCORD_TOKEN);
