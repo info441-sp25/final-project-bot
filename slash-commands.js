@@ -38,6 +38,11 @@ const commands = [
                 name: 'remind',
                 description: 'set a reminder for a task',
                 type: 1
+            },
+            {
+                name: 'edit',
+                description:'edit fields of an existing task',
+                type: 1
             }
         ]
     }

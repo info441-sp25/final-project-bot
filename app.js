@@ -113,4 +113,27 @@ app.post('/tasks/remind', async (req, res) => {
     }
 });
 
+app.post('/tasks/edit', async (req, res) => {
+  const { taskId, taskName, description, due_date, assignedUser } = req.body;
+  try {
+    const updatedTask = await req.models.Task.findByIdAndUpdate(
+      taskId,
+      { 
+        taskName, 
+        taskDescription: description,
+        due_date,
+        assignedUser
+      },
+      { new: true }
+    );
+    if (!updatedTask) {
+      return res.status(404).json({ status: 'error', message: 'Task not found' });
+    }
+    res.json({ status: 'success', updatedTask });
+  } catch (error) {
+    console.log('Error editing task:', error);
+    res.json({ status: 'error' });
+  }
+});
+
 export default app;

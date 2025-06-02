@@ -91,6 +91,103 @@ client.on('messageCreate', message => {
 
 // handle slash commands
 client.on('interactionCreate', async (interaction) => {
+  if (interaction.isCommand() && interaction.commandName === 'task') {
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === 'edit') {
+      const tasks = await models.Task.find(); 
+      if (!tasks.length) {
+        await interaction.reply('No tasks found.');
+        return;
+      }
+      const options = tasks.map(task =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(task.taskName || 'Unnamed')
+          .setValue(task._id.toString())
+      );
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('select_task_to_edit')
+        .setPlaceholder('Select a task to edit')
+        .addOptions(options);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      await interaction.reply({ components: [row] });
+    }
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'select_task_to_edit') {
+    const taskId = interaction.values[0];
+    const taskToEdit = await models.Task.findById(taskId);
+    if (!taskToEdit) {
+      await interaction.reply('Task not found.');
+      return;
+    }
+
+    const editModal = new ModalBuilder()
+      .setCustomId(`edit_task_modal:${taskId}`)
+      .setTitle('Edit Task Fields');
+
+    const nameInput = new TextInputBuilder()
+      .setCustomId('taskName')
+      .setLabel('New Name')
+      .setStyle(TextInputStyle.Short)
+      .setValue(taskToEdit.taskName || '');
+
+    const descInput = new TextInputBuilder()
+      .setCustomId('description')
+      .setLabel('New Description')
+      .setStyle(TextInputStyle.Paragraph)
+      .setValue(taskToEdit.taskDescription || '');
+
+    const dueDateInput = new TextInputBuilder()
+      .setCustomId('due_date')
+      .setLabel('New Due Date (YYYY-MM-DD)')
+      .setStyle(TextInputStyle.Short)
+      .setValue(taskToEdit.due_date ? taskToEdit.due_date.toISOString().split('T')[0] : '');
+
+    const assignedUserInput = new TextInputBuilder()
+      .setCustomId('assignedUser')
+      .setLabel('New Assigned User')
+      .setStyle(TextInputStyle.Short)
+      .setValue(taskToEdit.assignedUser || '');
+
+    editModal.addComponents(
+      new ActionRowBuilder().addComponents(nameInput),
+      new ActionRowBuilder().addComponents(descInput),
+      new ActionRowBuilder().addComponents(dueDateInput),
+      new ActionRowBuilder().addComponents(assignedUserInput)
+    );
+
+    await interaction.showModal(editModal);
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('edit_task_modal:')) {
+    const taskId = interaction.customId.split(':')[1];
+    const taskName = interaction.fields.getTextInputValue('taskName');
+    const description = interaction.fields.getTextInputValue('description');
+    const due_date = interaction.fields.getTextInputValue('due_date');
+    const assignedUser = interaction.fields.getTextInputValue('assignedUser');
+
+    try {
+      const response = await fetch('http://localhost:3000/tasks/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, taskName, description, due_date, assignedUser })
+      });
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        await interaction.reply(
+          `**Task edited successfully!**\nHere are the new task details:\n**Name:** ${taskName}\n**Description:** ${description}\n**Due Date:** ${due_date}\n**Assigned User:** ${assignedUser}`
+        );
+      } else {
+        await interaction.reply('Error editing task.');
+      }
+    } catch (err) {
+      console.log('Error editing task:', err);
+      await interaction.reply('Failed to edit task.');
+    }
+  }
+
   if (interaction.isCommand()) {
 
     if (interaction.commandName === 'task') {
