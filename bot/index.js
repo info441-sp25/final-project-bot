@@ -9,6 +9,10 @@ import models from '../models.js'
 import fetch from 'node-fetch';
 import cron from 'node-cron';
 import { buildDeleteTaskMenu, buildConfirmDeleteButton } from './ui/components/deleteTaskUI.js';
+import { formatTaskList } from './ui/components/taskListFormatter.js';
+import { buildReminderFrequencyMenu } from './ui/components/reminderFrequencyMenu.js';
+import { buildReminderTaskMenu } from './ui/components/reminderTaskMenu.js';
+import { processReminders } from './services/reminderService.js';
 
 
 dotenv.config();
@@ -204,24 +208,7 @@ client.on('interactionCreate', async (interaction) => {
           return
         }
 
-        const incompleteTask = tasks.filter(t => t.status === 'incomplete');
-        const inprogressTask = tasks.filter(t => t.status === 'in progress');
-        const completedTask = tasks.filter(t => t.status == 'complete');
-        
-    
-        const formatTasks = (taskList) =>
-          taskList.map(t =>
-            `- ${t.taskName}${t.taskDescription ? ` — ${t.taskDescription}` : ''}`
-          ).join('\n');
-    
-        const replyMessage = [
-          `**All Tasks:**`,
-          `**Incomplete Tasks:**\n${formatTasks(incompleteTask) || '- none'}`,
-          `**In-Progress Tasks:**\n${formatTasks(inprogressTask) || '- none'}`,
-          `**Completed Tasks:**\n${formatTasks(completedTask) || '- none'}`,
-
-        ].join('\n\n');
-
+        const replyMessage = formatTaskList(tasks);
         await interaction.reply({ 
           content: replyMessage, 
           ephemeral: false 
@@ -252,20 +239,9 @@ client.on('interactionCreate', async (interaction) => {
           await interaction.reply('No tasks found to set a reminder for.');
           return;
         }
-
-        const options = tasks.map(task =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(task.taskName || 'Unnamed')
-            .setValue(task._id.toString())
-        );
-
-        const taskSelectMenu = new StringSelectMenuBuilder()
-          .setCustomId('select_task_for_reminder')
-          .setPlaceholder('Select a task to set a reminder for')
-          .addOptions(options);
-
-        const taskRow = new ActionRowBuilder().addComponents(taskSelectMenu);
-
+        
+        const taskRow = buildReminderTaskMenu(tasks);
+        
         await interaction.reply({
           content: 'Pick the task you want to set a reminder for:',
           components: [taskRow],
@@ -369,22 +345,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      // discord js cool things string building
-      const freqOptions = [
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Once a day')
-          .setValue('daily')
-        // can add more here for future work but needs more a lot more logic to implement
-        // array of times
-        // probably a new field for weekly date
-      ];
-
-      const freqMenu = new StringSelectMenuBuilder()
-        .setCustomId(`select_frequency:${selectedTaskId}`)
-        .setPlaceholder('How often do you want to be reminded?')
-        .addOptions(freqOptions);
-
-      const freqRow = new ActionRowBuilder().addComponents(freqMenu);
+      const freqRow = buildReminderFrequencyMenu(selectedTaskId);
 
       await interaction.update({
         content: `Selected: **${selectedTask.taskName}**.\nNow choose a reminder frequency:`,
@@ -448,30 +409,9 @@ client.on('interactionCreate', async (interaction) => {
 // this is a cron which run scheduled script that runs automaticallt at a specific time blah blah blah
 // https://www.npmjs.com/package/node-cron
 cron.schedule('* * * * *', async () => {
-  try {
-    const reminderTasks = await models.Task.find({
-      reminderFrequency: { $in: ['daily'] },
-      reminderTime: { $exists: true, $ne: '' }
-    });
-    // time conversion
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5);
-
-    for (const task of reminderTasks) {
-      if (task.reminderTime === currentTime) {
-
-        const channel = await client.channels.fetch('1371958765997396011');        
-        if (channel) {
-          const formattedDueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US') : 'No due date set';
-          channel.send(
-            `⏰ Reminder: Task: **${task.taskName}** is still **${task.status}** for **${task.assignedUser}**\nand is due on: **${formattedDueDate}**.`
-          );
-        }
-      }
-    }
-  } catch (error) {
-    console.log('Error sending scheduled reminders:', error);
-  }
+  console.log('Running reminder check...');
+  await processReminders(client);
 });
+
 // Log in to Discord using token from .env
 client.login(process.env.DISCORD_TOKEN);
