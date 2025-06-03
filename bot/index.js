@@ -40,9 +40,18 @@ client.on('messageCreate', message => {
   if (message.author.bot) return;
 
   // Respond to a specific message
-  if (message.content.toLowerCase() === 'help') {
+  if (message.content.toLowerCase() === 'pmbot help') {
     // pm bot functions here
-    message.reply('Hi there! 👋 I am your friendly bot.');
+    message.reply(`
+Here is a list of commands you can use:
+- **/task create** - Create and assign a new task
+- **/task update** - Update a task's status
+- **/task all** - View all tasks by status
+- **/task delete** - Remove a task
+- **/task remind** - Set task reminders
+- **/task edit** - Change task details
+- **/task upcoming** - View active tasks
+`);
   }
 
 });
