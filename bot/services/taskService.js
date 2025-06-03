@@ -80,3 +80,17 @@ export async function setTaskReminder(taskId, frequency, reminderTime) {
     return { status: 'error', message: error.message };
   }
 }
+
+// get all tasks
+export async function getAllTasks() {
+  try {
+    const response = await fetch('http://localhost:3000/tasks/all', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return await response.json();
+  } catch (error) {
+    console.log('Error fetching all tasks:', error);
+    return { status: 'error', message: error.message, tasks: [] };
+  }
+}

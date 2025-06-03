@@ -136,4 +136,22 @@ app.post('/tasks/edit', async (req, res) => {
   }
 });
 
+// endpoint to get all tasks
+app.get('/tasks/all', async (req, res) => {
+  try {
+    const tasks = await req.models.Task.find();
+    return res.json({ 
+      status: 'success', 
+      tasks 
+    });
+  } catch (error) {
+    console.log('Error fetching all tasks:', error);
+    return res.json({ 
+      status: 'error', 
+      message: error.message,
+      tasks: [] 
+    });
+  }
+});
+
 export default app;

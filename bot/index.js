@@ -141,21 +141,25 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (subcommand === 'all') {
-        console.log("fetching all tasks")
-
-        // get all tasks from db
-        const tasks = await models.Task.find()
-    
-        if(!tasks) {
-          await interaction.reply(`No tasks yet`);
-          return
+        console.log("fetching all tasks");
+        
+        try {
+          const result = await taskService.getAllTasks();
+          
+          if (result.status === 'error' || !result.tasks || !result.tasks.length) {
+            await interaction.reply('No tasks yet or error fetching tasks.');
+            return;
+          }
+          
+          const replyMessage = formatTaskList(result.tasks);
+          await interaction.reply({ 
+            content: replyMessage, 
+            ephemeral: false 
+          });
+        } catch (error) {
+          console.log('Error in /task all command:', error);
+          await interaction.reply('Failed to get all the tasks. Please try again.');
         }
-
-        const replyMessage = formatTaskList(tasks);
-        await interaction.reply({ 
-          content: replyMessage, 
-          ephemeral: false 
-        });
       }
     
       if (subcommand === 'delete') {
