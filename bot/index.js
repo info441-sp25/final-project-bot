@@ -1,66 +1,23 @@
 // Import required modules
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { createTaskModal, processTaskModal, createUserSelect } from './taskModal.js';
-import { createUpdateTaskDropdown, createStatusSelectMenu } from './taskUpdateMenu.js';
+import { Client, GatewayIntentBits } from 'discord.js';
+import { createTaskModal, processTaskModal, createUserSelect } from './ui/modals/taskModal.js';
+import { createUpdateTaskDropdown, createStatusSelectMenu } from './ui/components/taskUpdateMenu.js';
+import { buildUpcomingDropdown } from './ui/components/upcomingTaskMenu.js';
+import { buildEditTaskModal } from './ui/modals/editTaskModal.js';
+import { buildRemindModal } from './ui/modals/reminderModal.js';
 import dotenv from 'dotenv';
-import models from '../models.js'
-import fetch from 'node-fetch';
+import models from '../models.js';
 import cron from 'node-cron';
+import { buildDeleteTaskMenu, buildConfirmDeleteButton } from './ui/components/deleteTaskUI.js';
+import { formatTaskList } from './ui/components/taskListFormatter.js';
+import { buildReminderFrequencyMenu } from './ui/components/reminderFrequencyMenu.js';
+import { buildReminderTaskMenu } from './ui/components/reminderTaskMenu.js';
+import { processReminders } from './services/reminderService.js';
+import * as taskService from './services/taskService.js';
+import { buildEditTaskMenu } from './ui/components/editTaskMenu.js';
 
 
 dotenv.config();
-
-// post task data gathered from modal
-async function postTask(currUsername, taskName, taskDescription, assignedUser, dueDate) {
-  try {
-    await fetch(`http://localhost:3000/tasks/create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: currUsername,
-        assignedUser: assignedUser,
-        taskName: taskName,
-        taskDescription: taskDescription,
-        due_date: dueDate,
-      })
-    })
-  } catch (err) {
-    console.log('error: posting tasks ' + err)
-  }
-}
-
-// update task status
-async function updateTask(taskId, taskStatus) {
-  try {
-    await fetch('http://localhost:3000/tasks/update', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        taskId: taskId,
-        status: taskStatus
-      })
-    })
-  } catch (error) {
-    console.log('Error updating task: ' + error)
-  }
-}
-
-// delete task stuff blah blah blah
-async function deleteTask(taskId) {
-  try {
-    await fetch('http://localhost:3000/tasks/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId })
-    });
-  } catch (error) {
-    console.log('Error deleting task:', error);
-  }
-}
 
 // Create a new Discord client with message intent
 const client = new Client({
@@ -83,8 +40,18 @@ client.on('messageCreate', message => {
   if (message.author.bot) return;
 
   // Respond to a specific message
-  if (message.content.toLowerCase() === 'hello') {
-    message.reply('Hi there! 👋 I am your friendly bot.');
+  if (message.content.toLowerCase() === 'pmbot help') {
+    // pm bot functions here
+    message.reply(`
+Here is a list of commands you can use:
+- **/task create** - Create and assign a new task
+- **/task update** - Update a task's status
+- **/task all** - View all tasks by status
+- **/task delete** - Remove a task
+- **/task remind** - Set task reminders
+- **/task edit** - Change task details
+- **/task upcoming** - View active tasks
+`);
   }
 
 });
@@ -100,16 +67,8 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply('No tasks found.');
         return;
       }
-      const options = tasks.map(task =>
-        new StringSelectMenuOptionBuilder()
-          .setLabel(task.taskName || 'Unnamed')
-          .setValue(task._id.toString())
-      );
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('select_task_to_edit')
-        .setPlaceholder('Select a task to edit')
-        .addOptions(options);
-      const row = new ActionRowBuilder().addComponents(selectMenu);
+      
+      const row = buildEditTaskMenu(tasks);
       await interaction.reply({ components: [row] });
     }
   }
@@ -121,42 +80,8 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply('Task not found.');
       return;
     }
-
-    const editModal = new ModalBuilder()
-      .setCustomId(`edit_task_modal:${taskId}`)
-      .setTitle('Edit Task Fields');
-
-    const nameInput = new TextInputBuilder()
-      .setCustomId('taskName')
-      .setLabel('New Name')
-      .setStyle(TextInputStyle.Short)
-      .setValue(taskToEdit.taskName || '');
-
-    const descInput = new TextInputBuilder()
-      .setCustomId('description')
-      .setLabel('New Description')
-      .setStyle(TextInputStyle.Paragraph)
-      .setValue(taskToEdit.taskDescription || '');
-
-    const dueDateInput = new TextInputBuilder()
-      .setCustomId('due_date')
-      .setLabel('New Due Date (YYYY-MM-DD)')
-      .setStyle(TextInputStyle.Short)
-      .setValue(taskToEdit.due_date ? taskToEdit.due_date.toISOString().split('T')[0] : '');
-
-    const assignedUserInput = new TextInputBuilder()
-      .setCustomId('assignedUser')
-      .setLabel('New Assigned User')
-      .setStyle(TextInputStyle.Short)
-      .setValue(taskToEdit.assignedUser || '');
-
-    editModal.addComponents(
-      new ActionRowBuilder().addComponents(nameInput),
-      new ActionRowBuilder().addComponents(descInput),
-      new ActionRowBuilder().addComponents(dueDateInput),
-      new ActionRowBuilder().addComponents(assignedUserInput)
-    );
-
+    // refactor here
+    const editModal = buildEditTaskModal(taskId, taskToEdit);
     await interaction.showModal(editModal);
   }
 
@@ -168,14 +93,9 @@ client.on('interactionCreate', async (interaction) => {
     const assignedUser = interaction.fields.getTextInputValue('assignedUser');
 
     try {
-      const response = await fetch('http://localhost:3000/tasks/edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, taskName, description, due_date, assignedUser })
-      });
-      const data = await response.json();
-
-      if (data.status === 'success') {
+      // refacotered
+      const result = await taskService.editTask(taskId, taskName, description, due_date, assignedUser);
+      if (result.status === 'success') {
         await interaction.reply(
           `**Task edited successfully!** Here are the new task details:\n**Name:** ${taskName}\n**Description:** ${description}\n**Due Date:** ${due_date}\n**Assigned User:** ${assignedUser}`
         );
@@ -225,38 +145,25 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (subcommand === 'all') {
-        console.log("fetching all tasks")
-
-        // get all tasks from db
-        const tasks = await models.Task.find()
-    
-        if(!tasks) {
-          await interaction.reply(`No tasks yet`);
-          return
-        }
-
-        const incompleteTask = tasks.filter(t => t.status === 'incomplete');
-        const inprogressTask = tasks.filter(t => t.status === 'in progress');
-        const completedTask = tasks.filter(t => t.status == 'complete');
+        console.log("fetching all tasks");
         
-    
-        const formatTasks = (taskList) =>
-          taskList.map(t =>
-            `- ${t.taskName}${t.taskDescription ? ` — ${t.taskDescription}` : ''}`
-          ).join('\n');
-    
-        const replyMessage = [
-          `**All Tasks:**`,
-          `**Incomplete Tasks:**\n${formatTasks(incompleteTask) || '- none'}`,
-          `**In-Progress Tasks:**\n${formatTasks(inprogressTask) || '- none'}`,
-          `**Completed Tasks:**\n${formatTasks(completedTask) || '- none'}`,
-
-        ].join('\n\n');
-
-        await interaction.reply({ 
-          content: replyMessage, 
-          ephemeral: false 
-        });
+        try {
+          const result = await taskService.getAllTasks();
+          
+          if (result.status === 'error' || !result.tasks || !result.tasks.length) {
+            await interaction.reply('No tasks yet or error fetching tasks.');
+            return;
+          }
+          
+          const replyMessage = formatTaskList(result.tasks);
+          await interaction.reply({ 
+            content: replyMessage, 
+            ephemeral: false 
+          });
+        } catch (error) {
+          console.log('Error in /task all command:', error);
+          await interaction.reply('Failed to get all the tasks. Please try again.');
+        }
       }
     
       if (subcommand === 'delete') {
@@ -266,19 +173,8 @@ client.on('interactionCreate', async (interaction) => {
           return;
         }
 
-        const options = tasks.map(task =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(task.taskName || 'Unnamed')
-            .setValue(task._id.toString())
-        );
-
-        const taskSelectMenu = new StringSelectMenuBuilder()
-          .setCustomId('select_task_to_delete')
-          .setPlaceholder('Select a task to delete')
-          .addOptions(options);
-
-        const selectRow = new ActionRowBuilder().addComponents(taskSelectMenu);
-
+        // refactor delete
+        const selectRow = buildDeleteTaskMenu(tasks);
         await interaction.reply({
           content: 'Choose a task to delete from the dropdown below:',
           components: [selectRow],
@@ -294,24 +190,22 @@ client.on('interactionCreate', async (interaction) => {
           await interaction.reply('No tasks found to set a reminder for.');
           return;
         }
-
-        const options = tasks.map(task =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(task.taskName || 'Unnamed')
-            .setValue(task._id.toString())
-        );
-
-        const taskSelectMenu = new StringSelectMenuBuilder()
-          .setCustomId('select_task_for_reminder')
-          .setPlaceholder('Select a task to set a reminder for')
-          .addOptions(options);
-
-        const taskRow = new ActionRowBuilder().addComponents(taskSelectMenu);
-
+        
+        const taskRow = buildReminderTaskMenu(tasks);
+        
         await interaction.reply({
           content: 'Pick the task you want to set a reminder for:',
           components: [taskRow],
           ephemeral: true
+        });
+      }
+
+      // Upcoming tasks
+      if (subcommand === 'upcoming') {
+        const dropdown = buildUpcomingDropdown();
+        await interaction.reply({
+          content: 'Do you want to view your active tasks or all active tasks?',
+          components: [dropdown],
         });
       }
     }
@@ -336,11 +230,12 @@ client.on('interactionCreate', async (interaction) => {
       // lightweight for now, we can add userID if needed
       const currUsername = interaction.user.username;
 
-      // post task data to the server
-      await postTask(currUsername, taskName, description, assignedUser, dueDate);
+      // post task data to the server using the service
+      // refactored
+      await taskService.createTask(currUsername, taskName, description, assignedUser, dueDate);
 
       // Respond to the user
-      await interaction.reply(`Task "${taskName}" created successfully! Assigned to @${assignedUser} and due on ${dueDate}`);
+      await interaction.reply(`Task **${taskName}** created successfully! \n Assigned to **@${assignedUser}** \n Due on **${dueDate}**`);
     }
   }
 
@@ -353,7 +248,6 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.update({
           content: 'Now select the new status for the task:',
           components: [statusRow],
-          ephemeral: true
         })
       } catch(error) {
         console.log("error: " + error)
@@ -366,19 +260,18 @@ client.on('interactionCreate', async (interaction) => {
       const selectedStatus = interaction.values[0];
 
       try {
-        await updateTask(taskId, selectedStatus);
+        // refactored
+        await taskService.updateTaskStatus(taskId, selectedStatus);
         const updatedTask = await models.Task.findById(taskId);
         if (!updatedTask) {
           await interaction.reply({
             content: 'Task not found or invalid ID.',
-            ephemeral: true
           });
           return;
         }
         const taskName = updatedTask.taskName || 'Unnamed';
         await interaction.reply({
           content: `Task updated! Task Name: **${taskName}** — New Status: **${selectedStatus}**`,
-          ephemeral: false
         });
       } catch (error) {
         console.log('Error updating task:', error);
@@ -392,14 +285,9 @@ client.on('interactionCreate', async (interaction) => {
       const selectedTaskId = interaction.values[0];
       const selectedTask = await models.Task.findById(selectedTaskId);
       const taskName = selectedTask?.taskName || 'Unnamed';
-      
-      //super cool delete button
-      const deleteButton = new ButtonBuilder()
-        .setCustomId(`confirm_delete:${selectedTaskId}`)
-        .setLabel(`Delete Task: ${taskName}`)
-        .setStyle(ButtonStyle.Danger);
 
-      const buttonRow = new ActionRowBuilder().addComponents(deleteButton);
+      // refactor delete buttons
+      const buttonRow = buildConfirmDeleteButton(selectedTaskId, taskName);
 
       await interaction.update({
         content: `Selected: **${taskName}**\nClick the button below to delete this task.`,
@@ -416,22 +304,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      // discord js cool things string building
-      const freqOptions = [
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Once a day')
-          .setValue('daily')
-        // can add more here for future work but needs more a lot more logic to implement
-        // array of times
-        // probably a new field for weekly date
-      ];
-
-      const freqMenu = new StringSelectMenuBuilder()
-        .setCustomId(`select_frequency:${selectedTaskId}`)
-        .setPlaceholder('How often do you want to be reminded?')
-        .addOptions(freqOptions);
-
-      const freqRow = new ActionRowBuilder().addComponents(freqMenu);
+      const freqRow = buildReminderFrequencyMenu(selectedTaskId);
 
       await interaction.update({
         content: `Selected: **${selectedTask.taskName}**.\nNow choose a reminder frequency:`,
@@ -443,20 +316,8 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.customId.startsWith('select_frequency:')) {
       const taskId = interaction.customId.split(':')[1];
       const frequency = interaction.values[0];
-
-      const timeModal = new ModalBuilder()
-        .setCustomId(`time_modal:${taskId}:${frequency}`)
-        .setTitle('Set Reminder Time');
-
-      const timeInput = new TextInputBuilder()
-        .setCustomId('reminder_time')
-        .setLabel('Enter reminder time (24-hr format)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 12:00 or 18:30');
-
-      const modalRow = new ActionRowBuilder().addComponents(timeInput);
-      timeModal.addComponents(modalRow);
-
+      // refactor here 
+      const timeModal = buildRemindModal(taskId, frequency);
       await interaction.showModal(timeModal);
     }
   }
@@ -466,7 +327,8 @@ client.on('interactionCreate', async (interaction) => {
     const taskToDelete = await models.Task.findById(taskId);
     const taskName = taskToDelete?.taskName || 'Unnamed';
 
-    await deleteTask(taskId);
+    // refactored
+    await taskService.deleteTask(taskId);
 
     await interaction.update({
       content: `Task with Name: **${taskName}** and ID: **${taskId}** has been deleted.`,
@@ -480,12 +342,8 @@ client.on('interactionCreate', async (interaction) => {
     const reminderTime = interaction.fields.getTextInputValue('reminder_time') || '';
 
     try {
-      await fetch('http://localhost:3000/tasks/remind', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, frequency, reminderTime })
-      });
-
+      // refactored
+      await taskService.setTaskReminder(taskId, frequency, reminderTime);
       const updatedTask = await models.Task.findById(taskId);
       const taskName = updatedTask?.taskName || 'Unnamed';
 
@@ -502,35 +360,41 @@ client.on('interactionCreate', async (interaction) => {
       });
     }
   }
+
+  // dropdown for upcoming
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'upcoming_task_scope') {
+      const scope = interaction.values[0];
+      const username = interaction.user.username;
+  
+      let result;
+      if (scope === 'team') {
+        result = await taskService.getActiveTasks();
+      } else {
+        result = await taskService.getMyActiveTasks(username);
+      }
+  
+      if (result.status === 'error' || !result.tasks.length) {
+        await interaction.update({ content: 'No active tasks found.', components: [] });
+        return;
+      }
+  
+      const replyMessage = result.tasks.map(t => `- ${t.taskName}${t.taskDescription ? ` — ${t.taskDescription}` : ''}`).join('\n');
+  
+      await interaction.update({
+        content: `**Active Tasks:**\n${replyMessage}`,
+        components: []
+      });
+    }
+  }
 })
 
 // this is a cron which run scheduled script that runs automaticallt at a specific time blah blah blah
 // https://www.npmjs.com/package/node-cron
 cron.schedule('* * * * *', async () => {
-  try {
-    const reminderTasks = await models.Task.find({
-      reminderFrequency: { $in: ['daily'] },
-      reminderTime: { $exists: true, $ne: '' }
-    });
-    // time conversion
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5);
-
-    for (const task of reminderTasks) {
-      if (task.reminderTime === currentTime) {
-
-        const channel = await client.channels.fetch('1371958765997396011');        
-        if (channel) {
-          const formattedDueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US') : 'No due date set';
-          channel.send(
-            `⏰ Reminder: Task: **${task.taskName}** is still **${task.status}** for **${task.assignedUser}**\nand is due on: **${formattedDueDate}**.`
-          );
-        }
-      }
-    }
-  } catch (error) {
-    console.log('Error sending scheduled reminders:', error);
-  }
+  console.log('Running reminder check...');
+  await processReminders(client);
 });
+
 // Log in to Discord using token from .env
 client.login(process.env.DISCORD_TOKEN);

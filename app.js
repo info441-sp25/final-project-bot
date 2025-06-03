@@ -136,4 +136,51 @@ app.post('/tasks/edit', async (req, res) => {
   }
 });
 
+// endpoint to get all tasks
+app.get('/tasks/all', async (req, res) => {
+  try {
+    const tasks = await req.models.Task.find();
+    return res.json({ 
+      status: 'success', 
+      tasks 
+    });
+  } catch (error) {
+    console.log('Error fetching all tasks:', error);
+    return res.json({ 
+      status: 'error', 
+      message: error.message,
+      tasks: [] 
+    });
+  }
+});
+
+// endpoint to get active tasks (filtered by status and optionally assignedUser)
+app.post('/tasks/active', async (req, res) => {  
+    const { assignedUser } = req.body;
+  
+    // Filter: only 'incomplete' or 'in progress'
+    const query = {
+      status: { $in: ['incomplete', 'in progress'] }
+    };
+  
+    // If assignedUser is specified, filter by it
+    if (assignedUser) {
+      query.assignedUser = assignedUser;
+    }
+  
+    try {
+      const activeTasks = await req.models.Task.find(query);
+      return res.json({
+        status: 'success',
+        tasks: activeTasks
+      });
+    } catch (error) {
+      console.log('Error fetching active tasks:', error);
+      return res.json({
+        status: 'error',
+        message: error.message,
+        tasks: []
+      });
+    }
+  });
 export default app;
