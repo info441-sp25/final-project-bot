@@ -94,3 +94,33 @@ export async function getAllTasks() {
     return { status: 'error', message: error.message, tasks: [] };
   }
 }
+
+// get ALL active tasks
+export async function getActiveTasks() {
+  try {
+    const response = await fetch('http://localhost:3000/tasks/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    return await response.json();
+  } catch (error) {
+    console.log('Error fetching active tasks:', error);
+    return { status: 'error', tasks: [] };
+  }
+}
+
+// get ONLY my active tasks
+export async function getMyActiveTasks(username) {
+  try {
+    const response = await fetch('http://localhost:3000/tasks/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignedUser: username })
+    });
+    return await response.json();
+  } catch (error) {
+    console.log('Error fetching my active tasks:', error);
+    return { status: 'error', tasks: [] };
+  }
+}

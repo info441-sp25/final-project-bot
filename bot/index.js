@@ -2,6 +2,7 @@
 import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuOptionBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { createTaskModal, processTaskModal, createUserSelect } from './ui/modals/taskModal.js';
 import { createUpdateTaskDropdown, createStatusSelectMenu } from './ui/components/taskUpdateMenu.js';
+import { buildUpcomingDropdown } from './ui/components/upcomingTaskMenu.js';
 import { buildEditTaskModal } from './ui/modals/editTaskModal.js';
 import { buildRemindModal } from './ui/modals/reminderModal.js';
 import dotenv from 'dotenv';
@@ -195,6 +196,15 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: true
         });
       }
+
+      // Upcoming tasks
+      if (subcommand === 'upcoming') {
+        const dropdown = buildUpcomingDropdown();
+        await interaction.reply({
+          content: 'Do you want to view your active tasks or all active tasks?',
+          components: [dropdown],
+        });
+      }
     }
   }
 
@@ -235,7 +245,6 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.update({
           content: 'Now select the new status for the task:',
           components: [statusRow],
-          ephemeral: true
         })
       } catch(error) {
         console.log("error: " + error)
@@ -254,14 +263,12 @@ client.on('interactionCreate', async (interaction) => {
         if (!updatedTask) {
           await interaction.reply({
             content: 'Task not found or invalid ID.',
-            ephemeral: true
           });
           return;
         }
         const taskName = updatedTask.taskName || 'Unnamed';
         await interaction.reply({
           content: `Task updated! Task Name: **${taskName}** — New Status: **${selectedStatus}**`,
-          ephemeral: false
         });
       } catch (error) {
         console.log('Error updating task:', error);
@@ -347,6 +354,33 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply({
         content: 'Failed to set reminder time.',
         ephemeral: true
+      });
+    }
+  }
+
+  // dropdown for upcoming
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'upcoming_task_scope') {
+      const scope = interaction.values[0];
+      const username = interaction.user.username;
+  
+      let result;
+      if (scope === 'team') {
+        result = await taskService.getActiveTasks();
+      } else {
+        result = await taskService.getMyActiveTasks(username);
+      }
+  
+      if (result.status === 'error' || !result.tasks.length) {
+        await interaction.update({ content: 'No active tasks found.', components: [] });
+        return;
+      }
+  
+      const replyMessage = result.tasks.map(t => `- ${t.taskName}${t.taskDescription ? ` — ${t.taskDescription}` : ''}`).join('\n');
+  
+      await interaction.update({
+        content: `**Active Tasks:**\n${replyMessage}`,
+        components: []
       });
     }
   }

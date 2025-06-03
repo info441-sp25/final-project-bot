@@ -43,6 +43,11 @@ const commands = [
                 name: 'edit',
                 description:'edit fields of an existing task',
                 type: 1
+            },
+            {
+                name: 'upcoming',
+                description:'view active tasks',
+                type: 1
             }
         ]
     }
