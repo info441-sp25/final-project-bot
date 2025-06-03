@@ -1,5 +1,5 @@
 // Import required modules
-import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuOptionBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import { createTaskModal, processTaskModal, createUserSelect } from './ui/modals/taskModal.js';
 import { createUpdateTaskDropdown, createStatusSelectMenu } from './ui/components/taskUpdateMenu.js';
 import { buildUpcomingDropdown } from './ui/components/upcomingTaskMenu.js';
@@ -14,6 +14,7 @@ import { buildReminderFrequencyMenu } from './ui/components/reminderFrequencyMen
 import { buildReminderTaskMenu } from './ui/components/reminderTaskMenu.js';
 import { processReminders } from './services/reminderService.js';
 import * as taskService from './services/taskService.js';
+import { buildEditTaskMenu } from './ui/components/editTaskMenu.js';
 
 
 dotenv.config();
@@ -39,7 +40,8 @@ client.on('messageCreate', message => {
   if (message.author.bot) return;
 
   // Respond to a specific message
-  if (message.content.toLowerCase() === 'hello') {
+  if (message.content.toLowerCase() === 'help') {
+    // pm bot functions here
     message.reply('Hi there! 👋 I am your friendly bot.');
   }
 
@@ -56,16 +58,8 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply('No tasks found.');
         return;
       }
-      const options = tasks.map(task =>
-        new StringSelectMenuOptionBuilder()
-          .setLabel(task.taskName || 'Unnamed')
-          .setValue(task._id.toString())
-      );
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('select_task_to_edit')
-        .setPlaceholder('Select a task to edit')
-        .addOptions(options);
-      const row = new ActionRowBuilder().addComponents(selectMenu);
+      
+      const row = buildEditTaskMenu(tasks);
       await interaction.reply({ components: [row] });
     }
   }
