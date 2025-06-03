@@ -1,5 +1,5 @@
 import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
-import models from '../models.js';
+import models from '../../../models.js';
 
 /**
  * Creates a dropdown menu component for selecting a task to update

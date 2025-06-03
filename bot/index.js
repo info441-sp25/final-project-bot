@@ -1,14 +1,14 @@
 // Import required modules
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { createTaskModal, processTaskModal, createUserSelect } from './taskModal.js';
-import { createUpdateTaskDropdown, createStatusSelectMenu } from './taskUpdateMenu.js';
-import { buildEditTaskModal } from './editTaskModal.js';
-import { buildRemindModal } from './reminderModal.js';
+import { createTaskModal, processTaskModal, createUserSelect } from './ui/modals/taskModal.js';
+import { createUpdateTaskDropdown, createStatusSelectMenu } from './ui/components/taskUpdateMenu.js';
+import { buildEditTaskModal } from './ui/modals/editTaskModal.js';
+import { buildRemindModal } from './ui/modals/reminderModal.js';
 import dotenv from 'dotenv';
 import models from '../models.js'
 import fetch from 'node-fetch';
 import cron from 'node-cron';
-import { buildDeleteTaskMenu, buildConfirmDeleteButton } from './deleteTaskUI.js';
+import { buildDeleteTaskMenu, buildConfirmDeleteButton } from './ui/components/deleteTaskUI.js';
 
 
 dotenv.config();
