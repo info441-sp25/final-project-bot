@@ -1,73 +1,21 @@
 // Import required modules
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, Client, GatewayIntentBits, StringSelectMenuOptionBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { createTaskModal, processTaskModal, createUserSelect } from './ui/modals/taskModal.js';
 import { createUpdateTaskDropdown, createStatusSelectMenu } from './ui/components/taskUpdateMenu.js';
 import { buildEditTaskModal } from './ui/modals/editTaskModal.js';
 import { buildRemindModal } from './ui/modals/reminderModal.js';
 import dotenv from 'dotenv';
-import models from '../models.js'
-import fetch from 'node-fetch';
+import models from '../models.js';
 import cron from 'node-cron';
 import { buildDeleteTaskMenu, buildConfirmDeleteButton } from './ui/components/deleteTaskUI.js';
 import { formatTaskList } from './ui/components/taskListFormatter.js';
 import { buildReminderFrequencyMenu } from './ui/components/reminderFrequencyMenu.js';
 import { buildReminderTaskMenu } from './ui/components/reminderTaskMenu.js';
 import { processReminders } from './services/reminderService.js';
+import * as taskService from './services/taskService.js';
 
 
 dotenv.config();
-
-// post task data gathered from modal
-async function postTask(currUsername, taskName, taskDescription, assignedUser, dueDate) {
-  try {
-    await fetch(`http://localhost:3000/tasks/create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: currUsername,
-        assignedUser: assignedUser,
-        taskName: taskName,
-        taskDescription: taskDescription,
-        due_date: dueDate,
-      })
-    })
-  } catch (err) {
-    console.log('error: posting tasks ' + err)
-  }
-}
-
-// update task status
-async function updateTask(taskId, taskStatus) {
-  try {
-    await fetch('http://localhost:3000/tasks/update', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        taskId: taskId,
-        status: taskStatus
-      })
-    })
-  } catch (error) {
-    console.log('Error updating task: ' + error)
-  }
-}
-
-// delete task stuff blah blah blah
-async function deleteTask(taskId) {
-  try {
-    await fetch('http://localhost:3000/tasks/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId })
-    });
-  } catch (error) {
-    console.log('Error deleting task:', error);
-  }
-}
 
 // Create a new Discord client with message intent
 const client = new Client({
@@ -141,14 +89,9 @@ client.on('interactionCreate', async (interaction) => {
     const assignedUser = interaction.fields.getTextInputValue('assignedUser');
 
     try {
-      const response = await fetch('http://localhost:3000/tasks/edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, taskName, description, due_date, assignedUser })
-      });
-      const data = await response.json();
-
-      if (data.status === 'success') {
+      // refacotered
+      const result = await taskService.editTask(taskId, taskName, description, due_date, assignedUser);
+      if (result.status === 'success') {
         await interaction.reply(
           `**Task edited successfully!** Here are the new task details:\n**Name:** ${taskName}\n**Description:** ${description}\n**Due Date:** ${due_date}\n**Assigned User:** ${assignedUser}`
         );
@@ -270,11 +213,12 @@ client.on('interactionCreate', async (interaction) => {
       // lightweight for now, we can add userID if needed
       const currUsername = interaction.user.username;
 
-      // post task data to the server
-      await postTask(currUsername, taskName, description, assignedUser, dueDate);
+      // post task data to the server using the service
+      // refactored
+      await taskService.createTask(currUsername, taskName, description, assignedUser, dueDate);
 
       // Respond to the user
-      await interaction.reply(`Task "${taskName}" created successfully! Assigned to @${assignedUser} and due on ${dueDate}`);
+      await interaction.reply(`Task **${taskName}** created successfully! \n Assigned to **@${assignedUser}** \n Due on **${dueDate}**`);
     }
   }
 
@@ -300,7 +244,8 @@ client.on('interactionCreate', async (interaction) => {
       const selectedStatus = interaction.values[0];
 
       try {
-        await updateTask(taskId, selectedStatus);
+        // refactored
+        await taskService.updateTaskStatus(taskId, selectedStatus);
         const updatedTask = await models.Task.findById(taskId);
         if (!updatedTask) {
           await interaction.reply({
@@ -368,7 +313,8 @@ client.on('interactionCreate', async (interaction) => {
     const taskToDelete = await models.Task.findById(taskId);
     const taskName = taskToDelete?.taskName || 'Unnamed';
 
-    await deleteTask(taskId);
+    // refactored
+    await taskService.deleteTask(taskId);
 
     await interaction.update({
       content: `Task with Name: **${taskName}** and ID: **${taskId}** has been deleted.`,
@@ -382,12 +328,8 @@ client.on('interactionCreate', async (interaction) => {
     const reminderTime = interaction.fields.getTextInputValue('reminder_time') || '';
 
     try {
-      await fetch('http://localhost:3000/tasks/remind', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, frequency, reminderTime })
-      });
-
+      // refactored
+      await taskService.setTaskReminder(taskId, frequency, reminderTime);
       const updatedTask = await models.Task.findById(taskId);
       const taskName = updatedTask?.taskName || 'Unnamed';
 
