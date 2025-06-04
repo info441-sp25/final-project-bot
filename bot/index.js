@@ -15,9 +15,24 @@ import { buildReminderTaskMenu } from './ui/components/reminderTaskMenu.js';
 import { processReminders } from './services/reminderService.js';
 import * as taskService from './services/taskService.js';
 import { buildEditTaskMenu } from './ui/components/editTaskMenu.js';
-
+import express from 'express';
 
 dotenv.config();
+
+// added server setup to avoid paying for background worker deployment on render (paid)
+const app = express();
+const PORT = 3000;
+
+app.get('/', (req, res) => {
+  const status = client.readyAt ? 'Online' : 'Starting up...';
+  res.send(`
+    <h1>Discord Bot Status: ${status}</h1>
+    <p>Bot started: ${client.readyAt || 'Not yet'}</p>
+    <p>Server uptime: ${Math.floor(process.uptime())} seconds</p>
+  `);
+});
+
+app.listen(PORT, '0.0.0.0');
 
 // Create a new Discord client with message intent
 const client = new Client({
