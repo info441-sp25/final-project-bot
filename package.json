@@ -14,7 +14,7 @@
     "express": "^4.21.0",
     "mongoose": "^8.15.0",
     "morgan": "~1.9.1",
-    "node-cron": "^4.0.7",
+    "node-cron": "^4.1.0",
     "node-fetch": "^3.3.2"
   },
   "description": "By Aadil Ali, Mackenzie Kimbrough, Megan Pham, Spencer Gardner",

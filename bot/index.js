@@ -62,12 +62,12 @@ client.on('interactionCreate', async (interaction) => {
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand === 'edit') {
-      const tasks = await models.Task.find(); 
+      const tasks = await models.Task.find();
       if (!tasks.length) {
         await interaction.reply('No tasks found.');
         return;
       }
-      
+
       const row = buildEditTaskMenu(tasks);
       await interaction.reply({ components: [row] });
     }
@@ -93,7 +93,7 @@ client.on('interactionCreate', async (interaction) => {
     const assignedUser = interaction.fields.getTextInputValue('assignedUser');
 
     try {
-      // refacotered
+      // refactered
       const result = await taskService.editTask(taskId, taskName, description, due_date, assignedUser);
       if (result.status === 'success') {
         await interaction.reply(
@@ -117,7 +117,7 @@ client.on('interactionCreate', async (interaction) => {
 
       if (subcommand === 'create') {
         try {
-          
+
           let userRow = createUserSelect()
           await interaction.reply({
             content: 'Please select a user to assign this task to: ',
@@ -139,33 +139,33 @@ client.on('interactionCreate', async (interaction) => {
             components: [taskNameRow],
             ephemeral: true
           })
-        } catch(error) {
+        } catch (error) {
           console.log("error: ", error)
         }
       }
 
       if (subcommand === 'all') {
         console.log("fetching all tasks");
-        
+
         try {
           const result = await taskService.getAllTasks();
-          
+
           if (result.status === 'error' || !result.tasks || !result.tasks.length) {
             await interaction.reply('No tasks yet or error fetching tasks.');
             return;
           }
-          
+
           const replyMessage = formatTaskList(result.tasks);
-          await interaction.reply({ 
-            content: replyMessage, 
-            ephemeral: false 
+          await interaction.reply({
+            content: replyMessage,
+            ephemeral: false
           });
         } catch (error) {
           console.log('Error in /task all command:', error);
           await interaction.reply('Failed to get all the tasks. Please try again.');
         }
       }
-    
+
       if (subcommand === 'delete') {
         const tasks = await models.Task.find();
         if (tasks.length === 0) {
@@ -190,9 +190,9 @@ client.on('interactionCreate', async (interaction) => {
           await interaction.reply('No tasks found to set a reminder for.');
           return;
         }
-        
+
         const taskRow = buildReminderTaskMenu(tasks);
-        
+
         await interaction.reply({
           content: 'Pick the task you want to set a reminder for:',
           components: [taskRow],
@@ -212,13 +212,13 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isUserSelectMenu() && interaction.customId == 'user_select') {
-        // create new modal using the function from taskModal.js
-        console.log(interaction.values)
-        const member = interaction.guild.members.cache.get(interaction.values[0]);
-        const username = member ? member.user.username : 'Unknown User';
-        console.log(username)
-        let modal = createTaskModal(username);
-        await interaction.showModal(modal);
+    // create new modal using the function from taskModal.js
+    console.log(interaction.values)
+    const member = interaction.guild.members.cache.get(interaction.values[0]);
+    const username = member ? member.user.username : 'Unknown User';
+    console.log(username)
+    let modal = createTaskModal(username);
+    await interaction.showModal(modal);
   }
 
   if (interaction.isModalSubmit()) {
@@ -232,29 +232,36 @@ client.on('interactionCreate', async (interaction) => {
 
       // post task data to the server using the service
       // refactored
-      await taskService.createTask(currUsername, taskName, description, assignedUser, dueDate);
-
-      // Respond to the user
-      await interaction.reply(`Task **${taskName}** created successfully! \n Assigned to **@${assignedUser}** \n Due on **${dueDate}**`);
+      try {
+        const result = await taskService.createTask(currUsername, taskName, description, assignedUser, dueDate); 
+        if (result.status === 'success') {
+          await interaction.reply(`Task **${taskName}** created successfully! \n Assigned to **@${assignedUser}** \n Due on **${dueDate}**`);
+        } else {
+          await interaction.reply('Failed to create task')
+        }
+      } catch (err) {
+        console.log('failed to create task: ' + err)
+        await interaction.reply('Failed to create task')
+      }
     }
   }
 
-  if(interaction.isStringSelectMenu()) {
-    if(interaction.customId === 'select_task_to_update') {
-      try{
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'select_task_to_update') {
+      try {
         const selectedTaskId = interaction.values[0];
         const statusRow = createStatusSelectMenu(selectedTaskId);
-        
+
         await interaction.update({
           content: 'Now select the new status for the task:',
           components: [statusRow],
         })
-      } catch(error) {
+      } catch (error) {
         console.log("error: " + error)
       }
     }
 
-    if(interaction.customId.startsWith('update_status:')) {
+    if (interaction.customId.startsWith('update_status:')) {
       const rawId = interaction.customId.split(':')[1];
       const taskId = rawId.trim();
       const selectedStatus = interaction.values[0];
@@ -366,21 +373,21 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.customId === 'upcoming_task_scope') {
       const scope = interaction.values[0];
       const username = interaction.user.username;
-  
+
       let result;
       if (scope === 'team') {
         result = await taskService.getActiveTasks();
       } else {
         result = await taskService.getMyActiveTasks(username);
       }
-  
+
       if (result.status === 'error' || !result.tasks.length) {
         await interaction.update({ content: 'No active tasks found.', components: [] });
         return;
       }
-  
+
       const replyMessage = result.tasks.map(t => `- ${t.taskName}${t.taskDescription ? ` — ${t.taskDescription}` : ''}`).join('\n');
-  
+
       await interaction.update({
         content: `**Active Tasks:**\n${replyMessage}`,
         components: []
