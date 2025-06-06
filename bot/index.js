@@ -19,6 +19,15 @@ import express from 'express';
 
 dotenv.config();
 
+// Create a new Discord client with message intent
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent]
+});
+
 // added server setup to avoid paying for background worker deployment on render (paid)
 const app = express();
 const PORT = 3000;
@@ -33,15 +42,6 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0');
-
-// Create a new Discord client with message intent
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent]
-});
 
 // Bot is ready
 client.once('ready', () => {
@@ -248,7 +248,7 @@ client.on('interactionCreate', async (interaction) => {
       // post task data to the server using the service
       // refactored
       try {
-        const result = await taskService.createTask(currUsername, taskName, description, assignedUser, dueDate); 
+        const result = await taskService.createTask(currUsername, taskName, description, assignedUser, dueDate);
         if (result.status === 'success') {
           await interaction.reply(`Task **${taskName}** created successfully! \n Assigned to **@${assignedUser}** \n Due on **${dueDate}**`);
         } else {
