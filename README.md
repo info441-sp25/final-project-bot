@@ -24,11 +24,12 @@ As INFO students, we’re no stranger to using Discord to communicate and share 
 
 ## Data Flow:
 
-<img width="745" alt="Screen Shot 2025-05-09 at 1 11 56 PM" src="https://github.com/user-attachments/assets/6ca6ffb8-9a41-41cc-85cb-66a65cc7c8ed" />
+<img width="943" alt="Screenshot 2025-06-06 at 9 43 21 AM" src="https://github.com/user-attachments/assets/422d435c-63d3-43b2-9133-0e6a27ed5cb0" />
+
 
 ## Architecture Diagram:
+<img width="863" alt="Screenshot 2025-06-04 at 9 48 04 PM" src="https://github.com/user-attachments/assets/7ee1a755-a1fa-409e-8d21-8d662d23bdd0" />
 
-<img width="1119" alt="Screen Shot 2025-05-09 at 1 12 20 PM" src="https://github.com/user-attachments/assets/c85a9f82-74c6-4566-a65e-a9252b475918" />
 
 ## User Stories
 
@@ -41,59 +42,36 @@ As INFO students, we’re no stranger to using Discord to communicate and share 
 | P1       | As a user  | I want to be able to set the due date and assign a user for the task so I know what needs to get done first. | When adding a new task, update MongoDB with the due date and assign userID.                                                                                     |
 | P1       | As a user  | I want to see the current status of all active tasks so I can monitor team progress. | When viewing all active tasks, retrieve all tasks from MongoDB that contain a status of “incomplete” or “in progress”.                                         |
 | P1       | As a user  | I want to view my upcoming tasks so that I can manage my workload effectively. | When viewing your own tasks, retrieve all tasks from MongoDB that contain the user’s userID and the status “incomplete” or “in progress”.                      |
-| P2       | As a user  | I want to receive reminders before assignment deadlines, so that I can ensure I don’t miss the due date. | Check the database for upcoming tasks based on the field due date. When the due date is 2 days away, send a message to the chat with the assignment title, due date, and assignee. |
-| P2       | As a user  | I want to assign team roles, so everyone’s responsibilities are clearly defined. | When assigned a role, locate the selected user in the database and update the role field.                                                                      |
+| P2       | As a user  | I want to receive reminders before assignment deadlines, so that I can ensure I don’t miss the due date. | Set a reminder frequency for a task and check the db for the frequency and send a reminder message to the user with the task name, due date, and task assignment. |
+| P2       | As a user  | I want to be able to edit task details after creation so I can correct information or adapt to any changes in the team. | When editing a task, retrieve the task by its ID, display a form with current values, then update MongoDB with the modified task name, description, assignee, and due date.                                                |
 | P2       | As a user  | I want to see past tasks so I can review what the team has accomplished so far. | When viewing past tasks, retrieve all tasks from MongoDB that contain a status of “complete”.                                                                   |
 | P2       | As a user  | I want to get notified if a teammate completes a task. | When the status of a task is changed to “complete”, send out a notification into the chat telling the group the name of the task and userID of the assignee.    |
 
 
 ## Discord/Command Endpoints:
 
-/task create @user  (description) - allows users to create a task and assign it to the team or specific members in the server.
-
-/task upcoming - allows user to view upcoming tasks for the team and their assignments
-
-/task upcoming @user- allows user to view upcoming tasks a specific member
-
-/task status @user - allows users to see the status of tasks
-
-/task status (update) @user - allows users to update the status of tasks (complete, working on)
-
-/tasks all - allows users to see all tasks for the team (past and present).
-
-/remind @user (taskID) (frequency) - allows user to set/change reminders for tasks for users on a frequency (1-per-day, 2-per-day, etc)
-
-/remind view - allows user to view all set reminders for the team
-
-/roles @user (role) - allows users to assign / change roles within the team.
-
-/roles view - view all users and their roles in the team
+- **/task create** - Create a new task with a task name, description, due date, assigned team member. Also stores a unique task ID, a status of incomplete, created date, and who created the task.
+- **/task update** - Update a task's status to "in progress" or "complete".
+- **/task all** - View all tasks for the team organized by their current status (incomplete, in-progress, complete)
+- **/task delete** - Remove a task from the database.
+- **/task remind** - Set up daily reminders for a task at a set time by the user.
+- **/task edit** - Modify task details including name, description, due date, and assigned user
+- **/task upcoming** - View active tasks with option to see all team tasks or just your personal ones.
 
 
 
 ## Database Schema
 
-### Users
-- `userID` (String): Unique identifier for the user.
-- `username` (String): The user's display name.
-- `role` (String): The role assigned to the user (e.g., "member", "admin").
-
 ### Tasks
-- `taskID` (ObjectID): Unique identifier for the task.
-- `description` (String): Description of the task.
-- `assignedTo` (Array of Strings): List of userIDs assigned to the task.
-- `status` (String): Status of the task (e.g., "incomplete", "in progress", "complete").
+- `_id` (ObjectID): Unique identifier for the task.
+- `username` (String): Name of the user who created the task.
+- `assignedUser` (String): Name of the user assigned to complete the task.
+- `taskName` (String): Title of the task.
+- `taskDescription` (String): Detailed description of the task.
+- `status` (String): Status of the task ("incomplete", "in progress", or "complete").
 - `due_date` (Date): The date the task is due.
 - `created_date` (Date): Timestamp of when the task was created.
-- `updated_date` (Date): Timestamp of the last update.
-
-### Reminders
-- `reminderID` (ObjectID): Unique identifier for the reminder.
-- `taskID` (ObjectID): Associated task's ID.
-- `userID` (String): ID of the user to remind.
-- `message` (String): Reminder message content.
-- `remind_date` (Date): Date and time the reminder should be sent.
-
-
+- `reminderFrequency` (String): How often to send reminders ("daily" as of now).
+- `reminderTime` (String): Time of day to send reminders (24-hour format).
 
 
