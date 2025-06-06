@@ -25,6 +25,10 @@ app.use((req, res, next) => {
     next();
 })
 
+// for uptime monitor to confirm the server is running
+app.get('/', (req, res) => {
+  res.send('Discord Bot is running!');
+});
 
 // post task endpoint, not using route currently but can swap if needed
 app.post('/tasks/create', async (req, res) => {
