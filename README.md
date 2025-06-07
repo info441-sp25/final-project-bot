@@ -74,4 +74,14 @@ As INFO students, we’re no stranger to using Discord to communicate and share 
 - `reminderFrequency` (String): How often to send reminders ("daily" as of now).
 - `reminderTime` (String): Time of day to send reminders (24-hour format).
 
+## Instructions on How to Use PM Bot:
 
+### Commands to type:
+- Type `pmbot help` to see all commands
+- Use `/task create`** to create and assign a new task
+- Use`/task all`** to view all tasks by status
+- Use `/task update`** to chance (incomplete, in progress, complete)
+- Use `/task delete`** to remove a task
+- Use `/task edit`** to modify task details
+- Use `/task remind`** to set daily reminders (use 24-hour format like "09:30" or "14:30")
+- Use `/task upcoming`** to view active tasks either your tasks or your teams
